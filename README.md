@@ -25,3 +25,4 @@ const intents = SAM({
 const [inc] = intents
 
 inc()
+```
