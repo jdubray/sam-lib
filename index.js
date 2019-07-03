@@ -12,10 +12,10 @@
 // OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, 
 // ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-import createInstance from './sam-instance'
-import SAM from './SAM'
-import api from './sam-actions'
-import { O, A, N, NZ, S, F, E, on, oneOf, or, and, match, step } from './sam-utils'
+import createInstance from './lib/sam-instance'
+import SAM from './lib/SAM'
+import api from './lib/sam-actions'
+import { O, A, N, NZ, S, F, E, on, oneOf, or, and, match, step, first } from './sam-utils'
 
 const { addInitialState, addComponent, setRender, 
     getIntents, addAcceptors, addReactors, addNAPs} = api
@@ -32,6 +32,7 @@ export default {
     getIntents,
     setRender,
     step,
+    first,
     match,
     on, 
     oneOf,
