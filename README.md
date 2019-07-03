@@ -12,13 +12,15 @@ import { SAM } from 'sam-pattern'
 const intents = SAM({
     initialState: {
         counter: 0
-    }, 
-    actions: [
-        () => ({ incBy: 1})
-    ],
-    acceptors: [
-        model => proposal => model.counter += incBy || 1
-    ],
+    },
+    component: { 
+        actions: [
+            () => ({ incBy: 1})
+        ],
+        acceptors: [
+            model => proposal => model.counter += incBy || 1
+        ]
+    },
     render: (state) => console.log(state)
 })
 
@@ -26,3 +28,5 @@ const [inc] = intents
 
 inc()
 ```
+
+A code sample is available [here](https://codepen.io/sam-pattern/pen/qzYQgd)

@@ -15,7 +15,7 @@
 import createInstance from './lib/sam-instance'
 import SAM from './lib/SAM'
 import api from './lib/sam-actions'
-import { O, A, N, NZ, S, F, E, on, oneOf, or, and, match, step, first } from './sam-utils'
+import { O, A, N, NZ, S, F, E, on, oneOf, or, and, match, step, first } from './lib/sam-utils'
 
 const { addInitialState, addComponent, setRender, 
     getIntents, addAcceptors, addReactors, addNAPs} = api
