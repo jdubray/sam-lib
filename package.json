@@ -1,5 +1,5 @@
 {
-  "name": "sam-lib",
+  "name": "sam-pattern",
   "version": "1.0.0",
   "description": "SAM Pattern library",
   "main": "index.js",
