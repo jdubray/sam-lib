@@ -230,6 +230,7 @@
     addTimeTraveler: (history = []) => SAM$1({ history }),
     travel: (index = 0) => SAM$1({ travel: { index } }),
     next: () => SAM$1({ travel: { next: true } }),
+    last: () => SAM$1({ travel: { endOfTime: true } }),
     hasNext: () => SAM$1({}).hasNext
   });
 

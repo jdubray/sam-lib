@@ -1,8 +1,8 @@
 {
   "name": "sam-pattern",
-  "version": "1.0.15",
+  "version": "1.0.17",
   "description": "SAM Pattern library",
-  "main": "./index.js",
+  "main": "./dist/sam.js",
   "scripts": {
     "build": "rollup index.js -f umd --name \"tp\" --file dist/sam.js",
     "test": "./node_modules/.bin/mocha --require @babel/register"

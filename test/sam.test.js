@@ -6,7 +6,7 @@ const { SAM, first, api } = require('../dist/sam')
 
 const {
   hasNext, addInitialState, addComponent, setRender, travel, addTimeTraveler
-} = api(SAM)
+} = api()
 
 let tick = () => ({})
 
