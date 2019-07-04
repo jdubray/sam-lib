@@ -36,7 +36,7 @@
   const wrap = (s, w) => m => s(w(m));
 
   const e = value => (Array.isArray(value)
-    ? value.map(e).reduce(and)
+    ? value.map(e).reduce(and, true)
     : value === true || (value !== null && value !== undefined));
 
   const i = (value, element) => {
@@ -74,9 +74,13 @@
     const history = h;
 
     return {
-      snap(state) {
+      snap(state, index) {
         const snapshot = clone(state);
-        history.push(snapshot);
+        if (index) {
+          history[index] = snapshot;
+        } else {
+          history.push(snapshot);
+        }
         return state
       },
 
@@ -145,7 +149,12 @@
     };
 
     // SAM's internal acceptors
-    const addInitialState = (initialState = {}) => Object.assign(model, initialState);
+    const addInitialState = (initialState = {}) => {
+      Object.assign(model, initialState);
+      if (history) {
+        history.snap(model, 0);
+      }
+    };
 
     // add one component at a time, returns array of intents from actions
     const addComponent = (component = {}) => {

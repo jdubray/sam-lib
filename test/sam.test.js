@@ -4,7 +4,9 @@ const { expect } = require('chai')
 
 const { SAM, first, api } = require('../dist/sam')
 
-const { hasNext } = api(SAM)
+const {
+  hasNext, addInitialState, addComponent, setRender, travel, addTimeTraveler
+} = api(SAM)
 
 let tick = () => ({})
 
@@ -90,6 +92,37 @@ describe('SAM tests', () => {
         },
         render: state => expect(state.counter).to.equal(11)
       })
+    })
+
+    it('should travel back in time', () => {
+      addTimeTraveler([])
+
+      addInitialState({
+        counter: 0
+      })
+
+      const { intents } = addComponent({
+        actions: [
+          () => ({ incBy: 1 })
+        ],
+        acceptors: [
+          model => (proposal) => {
+            model.counter += proposal.incBy || 1
+          }
+        ]
+      })
+
+      setRender(state => expect(state.counter).to.be.lessThan(4))
+
+      const [inc] = intents
+
+      inc()
+      inc()
+      inc()
+
+      setRender(state => expect(state.counter).to.be.equal(0))
+
+      travel(0)
     })
   })
 })
