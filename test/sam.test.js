@@ -1,60 +1,95 @@
-import { expect } from "chai"
+/* eslint-disable no-unused-expressions */
+/* eslint-disable no-undef */
+const { expect } = require('chai')
 
-import SAM from '../lib/SAM'
-import { step, E, first } from '../lib/sam-utils'
+const { SAM, first, api } = require('../dist/sam')
 
-let tick = () => ({});
+const { hasNext } = api(SAM)
 
-describe('SAM tests', function() {
-    before(function() {
-        tick = first(SAM({
-            component: {
-                actions: [
-                    () => ({test: true})
-                ]
+let tick = () => ({})
+
+describe('SAM tests', () => {
+  before(() => {
+    tick = first(SAM({
+      component: {
+        actions: [
+          () => ({ test: true })
+        ]
+      }
+    }).intents)
+  })
+
+  describe('loop', () => {
+    it('should create an intent', () => {
+      SAM({
+        initialState: {
+          counter: 10,
+          status: 'ready'
+        }
+      })
+
+      expect(tick).to.exist
+    })
+
+    it('should add an acceptor', () => {
+      SAM({
+        component: {
+          acceptors: [
+            model => ({ test }) => {
+              if (test) {
+                model.status = 'testing'
+              }
             }
-        }).intents)
-    }); 
+          ]
+        },
+        render: state => expect(state.status).to.equal('testing')
+      })
 
-    describe('loop', function() {
-        it('create an intent', function() {
-            SAM({
-                initialState: {
-                    counter: 10,
-                    status: 'ready'
-                }
-            })
+      tick()
+    })
 
-            expect(tick).to.exist 
-        });
+    it('should add to the application state', () => {
+      SAM({
+        initialState: {
+          warnings: []
+        },
+        render: state => expect(state.warnings).to.exist
+      })
 
-        it('add an acceptor', function() {
-            SAM({
-                component: {
-                    acceptors: [
-                        model => ({ test }) => {
-                            if (test) {
-                            model.status = 'testing'
-                            }
-                        }
-                    ]
-                }, 
-                render: (state) => expect(state.status).to.equal('testing')
-            })
+      tick()
+    })
+  })
 
-            tick()
-        });
+  describe('timetraveler', () => {
+    it('should add traveler', () => {
+      SAM({
+        history: [{
+          counter: 10,
+          status: 'ready'
+        }, {
+          counter: 11,
+          status: 'traveled'
+        }
+        ]
+      })
 
-        it('should add to the application state', function() {
-            SAM({
-                initialState: {
-                    warnings: []
-                },
-                render: (state) => expect(state.warnings).to.exist
-            })
+      expect(hasNext()).to.be.true
+    })
 
-            tick()
-        });
+    it('should move to the next state', () => {
+      SAM({
+        travel: {
+          next: true
+        },
+        render: state => expect(state.counter).to.equal(10)
+      })
 
-  });
-});
+      SAM({
+        travel: {
+          next: true
+        },
+        render: state => expect(state.counter).to.equal(11)
+      })
+    })
+  })
+})

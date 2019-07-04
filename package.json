@@ -33,7 +33,13 @@
     "@babel/preset-env": "^7.4.5",
     "@babel/register": "^7.4.4",
     "@babel/runtime": "^7.4.5",
+    "babel-eslint": "^10.0.2",
     "chai": "^4.2.0",
+    "eslint": "^6.0.1",
+    "eslint-config-airbnb": "^17.1.1",
+    "eslint-config-babel": "^9.0.0",
+    "eslint-config-prettier": "^6.0.0",
+    "eslint-plugin-import": "^2.18.0",
     "mocha": "^6.1.4",
     "nodemon": "^1.19.1",
     "rollup": "^1.16.4",
@@ -43,5 +49,9 @@
     "rollup-plugin-terser": "^5.1.0",
     "uglify-es": "^3.3.9"
   },
-  "unpkg": "dist/sam.js"
+  "unpkg": "dist/sam.js",
+  "dependencies": {
+    "eslint-plugin-jsx-a11y": "^6.2.3",
+    "eslint-plugin-react": "^7.14.2"
+  }
 }
