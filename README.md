@@ -39,7 +39,7 @@ You can also use it within the browser; install via npm and use the sam.js file 
 <script src="https://unpkg.com/sam-pattern"></script>
 ```
 The library's name is `tp` (as in temporal programming)
-```
+```javascript
 // API to the global SAM instance
 const { addInitialState, addComponent, setRender } = tp
 
