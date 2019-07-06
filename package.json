@@ -1,6 +1,6 @@
 {
   "name": "sam-pattern",
-  "version": "1.0.18",
+  "version": "1.0.21",
   "description": "SAM Pattern library",
   "main": "./dist/sam.js",
   "scripts": {
@@ -40,6 +40,8 @@
     "eslint-config-babel": "^9.0.0",
     "eslint-config-prettier": "^6.0.0",
     "eslint-plugin-import": "^2.18.0",
+    "eslint-plugin-jsx-a11y": "^6.2.3",
+    "eslint-plugin-react": "^7.14.2",
     "mocha": "^6.1.4",
     "nodemon": "^1.19.1",
     "rollup": "^1.16.4",
@@ -50,8 +52,5 @@
     "uglify-es": "^3.3.9"
   },
   "unpkg": "dist/sam.js",
-  "dependencies": {
-    "eslint-plugin-jsx-a11y": "^6.2.3",
-    "eslint-plugin-react": "^7.14.2"
-  }
+  "dependencies": {}
 }

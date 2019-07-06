@@ -2,7 +2,11 @@
 /* eslint-disable no-undef */
 const { expect } = require('chai')
 
-const { SAM, first, api } = require('../dist/sam')
+const {
+  SAM, first, api, utils: {
+    O
+  }
+} = require('../dist/sam')
 
 const {
   hasNext, addInitialState, addComponent, setRender, travel, addTimeTraveler
@@ -26,25 +30,34 @@ describe('SAM tests', () => {
       SAM({
         initialState: {
           counter: 10,
-          status: 'ready'
+          status: 'ready',
+          color: 'blue'
         }
       })
 
       expect(tick).to.exist
     })
 
-    it('should add an acceptor', () => {
+    it('should add an acceptor and some private state', () => {
       SAM({
         component: {
+          name: 'tester',
+          localState: {
+            color: 'blue'
+          },
           acceptors: [
-            model => ({ test }) => {
+            localState => ({ test }) => {
               if (test) {
-                model.status = 'testing'
+                localState.color = 'purple'
               }
             }
           ]
         },
-        render: state => expect(state.status).to.equal('testing')
+        render: (state) => {
+          expect(state.status).to.equal('ready')
+          expect(state.localState('tester').color).to.equal('purple')
+          expect(state.color).to.be.equal('blue')
+        }
       })
 
       tick()
@@ -60,10 +73,38 @@ describe('SAM tests', () => {
 
       tick()
     })
+
+    it('should support asynchronous actions', () => {
+      const { intents } = SAM({
+        initialState: {
+          counter: 10,
+          status: 'ready'
+        },
+        component: {
+          actions: [
+            () => new Promise(r => setTimeout(r, 1000)).then(() => ({ test: true }))
+          ],
+          acceptors: [
+            model => ({ test }) => {
+              if (test) {
+                model.status = 'testing'
+              }
+            }
+          ]
+        },
+        render: (state) => {
+          expect(state.status).to.equal('testing')
+        }
+      })
+
+      const [test] = intents
+
+      test()
+    })
   })
 
   describe('timetraveler', () => {
-    it('should add traveler', () => {
+    it('should add traveler with two records of prior history', () => {
       SAM({
         history: [{
           counter: 10,

@@ -126,10 +126,15 @@
     let _render = () => null;
     const react = r => r();
     const accept = proposal => a => a(proposal);
-    const mount = (arr = [], elements = [], operand = model) => elements.map(e => arr.push(e(operand)));
+    const mount = (arr = [], elements = [], operand = model) => elements.map(el => arr.push(el(operand)));
 
     // Model
-    let model = {};
+    let model = {
+      __components: {},
+      localState(name) {
+        return E(name) ? this.__components[name] : {}
+      }
+    };
 
     // State Representation
     const state = () => {
@@ -140,7 +145,7 @@
       !naps.map(react).reduce(or, false) && renderView(model);
     };
 
-    const present = (proposal) => {
+    const present = (proposal, privateState) => {
       // accept proposal
       acceptors.forEach(accept(proposal));
 
@@ -158,13 +163,18 @@
 
     // add one component at a time, returns array of intents from actions
     const addComponent = (component = {}) => {
+      // Add component's private state
+      if (E(component.name)) {
+        model.__components[component.name] = O(component.localState);
+      }
+
       // Decorate actions to present proposal to the model
-      // intents = A(component.actions).map(action => async (...args) => present(await action(...args)))
       intents = A(component.actions).map(action => async (...args) => present(await action(...args)));
+
       // Add component's acceptors,  reactors and naps to SAM
-      mount(acceptors, component.acceptors, component.privateModel);
-      mount(reactors, component.reactors, component.privateModel);
-      mount(naps, component.naps, component.privateModel);
+      mount(acceptors, component.acceptors, component.localState);
+      mount(reactors, component.reactors, component.localState);
+      mount(naps, component.naps, component.localState);
     };
 
     const setRender = (render) => {
