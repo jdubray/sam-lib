@@ -2,7 +2,7 @@
 
 The [SAM pattern](http://sam.js.org) is a software engineering pattern based on the semantics of [TLA+](https://en.wikipedia.org/wiki/TLA%2B). SAM (State-Action-Model) helps manage and reason about the application state from a temporal perspective. SAM's founding principle is that State Mutation must be a first class citizen of the programming model and as such mutations must occur in a well defined synchronized step. SAM defines a step as: Action -> Acceptor(s) -> Reactor(s) -> Next-Action and|or render. 
 
-SAM is generally implemented as a singleton and a single state tree, but that's not a requirement. The application logic can be componentized. Components implement actions, acceptors and reactors. Actions are converted to intents by the SAM pattern. Intents are invoked by the client/consumer of the SAM instance (which could be another SAM instance). SAM supports asynchronous actions.
+SAM is generally implemented as a singleton and a single state tree, but that's not a requirement. The application logic can be componentized. Components implement actions, acceptors and reactors and can either operate of a local state or the instance state tree. Actions are converted to intents by the SAM pattern. Intents are invoked by the client/consumer of the SAM instance (which could be another SAM instance). SAM supports asynchronous actions.
 
 The `sam-pattern` library is implemented following SAM's own principles. 
 

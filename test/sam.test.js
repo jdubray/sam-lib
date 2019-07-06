@@ -65,6 +65,30 @@ describe('SAM tests', () => {
       tick()
     })
 
+    it('should add a private component with an empty localState', () => {
+      SAM({
+        component: {
+          name: 'testerWithNoInitialState',
+          acceptors: [
+            localState => ({ test }) => {
+              if (test) {
+                localState.color = 'purple'
+              }
+            }
+          ]
+        },
+        render: (state) => {
+          const localState = state.localState('testerWithNoInitialState')
+          expect(state.status).to.equal('ready')
+          expect(localState.color).to.equal('purple')
+          expect(state.color).to.be.equal('blue')
+          expect(localState.parent.color).to.be.equal('blue')
+        }
+      })
+  
+      tick()
+    })
+
     it('should add to the application state', () => {
       SAM({
         initialState: {
