@@ -3,9 +3,7 @@
 const { expect } = require('chai')
 
 const {
-  SAM, first, api, utils: {
-    O
-  }
+  SAM, first, api, createInstance
 } = require('../dist/sam')
 
 const {
@@ -85,7 +83,7 @@ describe('SAM tests', () => {
           expect(localState.parent.color).to.be.equal('blue')
         }
       })
-  
+
       tick()
     })
 
@@ -126,6 +124,55 @@ describe('SAM tests', () => {
       const [test] = intents
 
       test()
+    })
+
+    it('should roll back when a safety condition is detected', () => {
+      const SafeSAM = createInstance()
+      const { intents } = SafeSAM({
+        initialState: {
+          counter: 10,
+          status: 'ready'
+        },
+        history: [],
+        component: {
+          actions: [
+            () => ({ incBy: 1 })
+          ],
+          acceptors: [
+            model => ({ incBy }) => {
+              if (incBy) {
+                model.counter += incBy
+              }
+            }
+          ],
+          reactors: [
+            model => () => {
+              if (model.counter > 10) {
+                model.status = 'error'
+              }
+            }
+          ],
+          safety: [
+            {
+              expression: model => model.counter > 10,
+              name: 'Counter value is dangerously high'
+            }
+          ]
+        },
+        logger: {
+          error: (err) => {
+            expect(err.name).to.equal('Counter value is dangerously high')
+          }
+        },
+        render: (state) => {
+          // the model should have rolled back
+          expect(state.counter).to.equal(10)
+        }
+      })
+
+      const [inc] = intents
+
+      inc()
     })
   })
 

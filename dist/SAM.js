@@ -120,6 +120,7 @@
       model.__hasNext = history ? history.hasNext() : false;
     }];
     const naps = [];
+    let logger;
 
     // ancillary
     let renderView = () => null;
@@ -142,7 +143,9 @@
       reactors.forEach(react);
 
       // render state representation (gated by nap)
-      !naps.map(react).reduce(or, false) && renderView(model);
+      if (!naps.map(react).reduce(or, false))  {
+        renderView(model);
+      }
     };
 
     const present = (proposal, privateState) => {
@@ -161,6 +164,21 @@
       }
     };
 
+    // eslint-disable-next-line no-shadow
+    const rollback = (conditions = []) => conditions.map(condition => model => () => {
+      const isNotSafe = condition.expression(model);
+      if (isNotSafe) {
+        logger && logger.error({ name: condition.name, model });
+        // rollback if history is present
+        if (history) {
+          model = history.last();
+          renderView(model);
+        }
+        return true
+      }
+      return false
+    });
+
     // add one component at a time, returns array of intents from actions
     const addComponent = (component = {}) => {
       // Add component's private state
@@ -172,15 +190,20 @@
       // Decorate actions to present proposal to the model
       intents = A(component.actions).map(action => async (...args) => present(await action(...args)));
 
-      // Add component's acceptors,  reactors and naps to SAM
+      // Add component's acceptors,  reactors, naps and safety condition to SAM instance
       mount(acceptors, component.acceptors, component.localState);
       mount(reactors, component.reactors, component.localState);
+      mount(naps, rollback(component.safety), component.localState);
       mount(naps, component.naps, component.localState);
     };
 
     const setRender = (render) => {
       renderView = history ? wrap(render, history.snap) : render;
       _render = render;
+    };
+
+    const setLogger = (l) => {
+      logger = l;
     };
 
     const setHistory = (h) => {
@@ -206,15 +229,16 @@
     // SAM's internal present function
     return ({
       // eslint-disable-next-line no-shadow
-      initialState, component, render, history, travel
+      initialState, component, render, history, travel, logger
     }) => {
       intents = [];
 
-      on(initialState, addInitialState)
+      on(history, setHistory)
+        .on(initialState, addInitialState)
         .on(component, addComponent)
         .on(render, setRender)
-        .on(history, setHistory)
-        .on(travel, timetravel);
+        .on(travel, timetravel)
+        .on(logger, setLogger);
 
       return {
         hasNext: model.__hasNext,

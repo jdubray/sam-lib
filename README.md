@@ -110,6 +110,67 @@ SAM's implementation is capable of time traveling (return to a prior state of th
 
 ## Code samples
 
+### Safety Conditions
+
+Temporal programming (and TLA+) supports invariants which can be checked after each step as Safety conditions (an invalid state). When a Safety Condition is detected, SAM will roll back the application state to the latest valid snapshot of the model (if history is turned on) and notify the client of the corresponding exception.
+
+```javascript
+// Create a local SAM instance (different from the Global one)
+const SafeSAM = createInstance()
+const { intents } = SafeSAM({
+    // set initial state
+    initialState: {
+        counter: 10,
+        status: 'ready'
+    },
+    // use time timetravel to enable rollback
+    history: [],
+    component: {
+        // Standard counter component
+        actions: [
+            () => ({ incBy: 1 })
+        ],
+        acceptors: [
+            model => ({ incBy }) => {
+                if (incBy) {
+                    model.counter += incBy
+                }
+            }
+        ],
+        reactors: [
+            model => () => {
+                if (model.counter > 10) {
+                    model.status = 'error'
+                }
+            }
+        ],
+        // Safety condition, when true, will roll back to the
+        // latest safe version of the application state
+        safety: [
+        {
+            expression: model => model.counter > 10,
+            name: 'Counter value is dangerously high'
+        }
+        ]
+    },
+    logger: {
+        error: (err) => {
+            console.log(err.name) // -> Counter value is dangerously high
+        }
+    },
+    render: (state) => {
+        // the model should have rolled back
+        console.log(state.counter) // -> 10
+    }
+})
+
+const [inc] = intents
+
+// Increment counter from 10 to 11
+// to trigger the safety condition
+inc()
+```
+
 ### Asynchronous actions
 SAM supports and welcomes the use of asynchronous actions.
 
