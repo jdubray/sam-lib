@@ -53,13 +53,13 @@
     ? i(value, element)
     : e(value));
 
-  const oneOf = (value, f) => {
-    e(value) && f(value);
+  const oneOf = (value, f, guard = true) => {
+    e(value) && guard && f(value);
     return mon(e(value))
   };
 
-  const on = (value, f) => {
-    e(value) && f(value);
+  const on = (value, f, guard = true) => {
+    e(value) && guard && f(value);
     return { on }
   };
 
@@ -69,9 +69,10 @@
 
   const clone = state => JSON.parse(JSON.stringify(state));
 
-  var timetraveler = (h = []) => (function () {
+  var timetraveler = (h = [], options = {}) => (function () {
     let currentIndex = 0;
     const history = h;
+    const { max } = options;
 
     return {
       snap(state, index) {
@@ -80,11 +81,14 @@
           history[index] = snapshot;
         } else {
           history.push(snapshot);
+          if (max && history.length > max) {
+            history.splice(0, 1);
+          }
         }
         return state
       },
 
-      travel(index) {
+      travel(index = 0) {
         currentIndex = index;
         return history[index]
       },
@@ -111,7 +115,7 @@
   // - SAM's internal acceptors
   // - SAM's present function
 
-  function createInstance () {
+  function createInstance (options = {}) {
     // SAM's internal model
     let intents;
     let history;
@@ -121,6 +125,7 @@
     }];
     const naps = [];
     let logger;
+    const { max } = O(options.timetravel);
 
     // ancillary
     let renderView = () => null;
@@ -207,7 +212,7 @@
     };
 
     const setHistory = (h) => {
-      history = timetraveler(h);
+      history = timetraveler(h, { max });
       model.__hasNext = history.hasNext();
       renderView = wrap(_render, history.snap);
     };
