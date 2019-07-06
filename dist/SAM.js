@@ -53,13 +53,13 @@
     ? i(value, element)
     : e(value));
 
-  const oneOf = (value, f) => {
-    e(value) && f(value);
+  const oneOf = (value, f, guard = true) => {
+    e(value) && guard && f(value);
     return mon(e(value))
   };
 
-  const on = (value, f) => {
-    e(value) && f(value);
+  const on = (value, f, guard = true) => {
+    e(value) && guard && f(value);
     return { on }
   };
 
@@ -69,9 +69,10 @@
 
   const clone = state => JSON.parse(JSON.stringify(state));
 
-  var timetraveler = (h = []) => (function () {
+  var timetraveler = (h = [], options = {}) => (function () {
     let currentIndex = 0;
     const history = h;
+    const { max } = options;
 
     return {
       snap(state, index) {
@@ -80,11 +81,14 @@
           history[index] = snapshot;
         } else {
           history.push(snapshot);
+          if (max && history.length > max) {
+            history.splice(0, 1);
+          }
         }
         return state
       },
 
-      travel(index) {
+      travel(index = 0) {
         currentIndex = index;
         return history[index]
       },
@@ -111,7 +115,7 @@
   // - SAM's internal acceptors
   // - SAM's present function
 
-  function createInstance () {
+  function createInstance (options = {}) {
     // SAM's internal model
     let intents;
     let history;
@@ -120,6 +124,8 @@
       model.__hasNext = history ? history.hasNext() : false;
     }];
     const naps = [];
+    let logger;
+    const { max } = O(options.timetravel);
 
     // ancillary
     let renderView = () => null;
@@ -142,7 +148,9 @@
       reactors.forEach(react);
 
       // render state representation (gated by nap)
-      !naps.map(react).reduce(or, false) && renderView(model);
+      if (!naps.map(react).reduce(or, false))  {
+        renderView(model);
+      }
     };
 
     const present = (proposal, privateState) => {
@@ -161,6 +169,21 @@
       }
     };
 
+    // eslint-disable-next-line no-shadow
+    const rollback = (conditions = []) => conditions.map(condition => model => () => {
+      const isNotSafe = condition.expression(model);
+      if (isNotSafe) {
+        logger && logger.error({ name: condition.name, model });
+        // rollback if history is present
+        if (history) {
+          model = history.last();
+          renderView(model);
+        }
+        return true
+      }
+      return false
+    });
+
     // add one component at a time, returns array of intents from actions
     const addComponent = (component = {}) => {
       // Add component's private state
@@ -172,9 +195,10 @@
       // Decorate actions to present proposal to the model
       intents = A(component.actions).map(action => async (...args) => present(await action(...args)));
 
-      // Add component's acceptors,  reactors and naps to SAM
+      // Add component's acceptors,  reactors, naps and safety condition to SAM instance
       mount(acceptors, component.acceptors, component.localState);
       mount(reactors, component.reactors, component.localState);
+      mount(naps, rollback(component.safety), component.localState);
       mount(naps, component.naps, component.localState);
     };
 
@@ -183,8 +207,12 @@
       _render = render;
     };
 
+    const setLogger = (l) => {
+      logger = l;
+    };
+
     const setHistory = (h) => {
-      history = timetraveler(h);
+      history = timetraveler(h, { max });
       model.__hasNext = history.hasNext();
       renderView = wrap(_render, history.snap);
     };
@@ -206,15 +234,16 @@
     // SAM's internal present function
     return ({
       // eslint-disable-next-line no-shadow
-      initialState, component, render, history, travel
+      initialState, component, render, history, travel, logger
     }) => {
       intents = [];
 
-      on(initialState, addInitialState)
+      on(history, setHistory)
+        .on(initialState, addInitialState)
         .on(component, addComponent)
         .on(render, setRender)
-        .on(history, setHistory)
-        .on(travel, timetravel);
+        .on(travel, timetravel)
+        .on(logger, setLogger);
 
       return {
         hasNext: model.__hasNext,
