@@ -142,9 +142,9 @@ const [test, inc] = intents
 test()  // -> testing
 ```
 
-### Components with Local State only
+### Components with Local State
 
-A named component operates on their local state (which can be initialized via the `localState` property). The component's acceptors and reactors will not have access to the state tree of the SAM instance they belong to. The SAM instance  
+A named component operates on their local state (which can be initialized via the `localState` property). The component's acceptors and reactors can access the state tree of the SAM instance via the `parent` property.   
 
 ```javascript
 const [tick] = SAM({
@@ -170,9 +170,11 @@ const [tick] = SAM({
         ]
     },
     render: (state) => {
-        console.log(state.status)                       // -> ready
-        console.log(state.localState('local').color)    // -> purple
-        console.log(state.color)                        // -> blue
+        console.log(state.status)                               // -> ready
+        console.log(state.localState('local').color)            // -> purple
+        console.log(state.color)                                // -> blue
+        console.log(state.localState('local').parent.color)     // -> purple
+        
     }
 }).intents
 

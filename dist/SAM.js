@@ -165,7 +165,7 @@
     const addComponent = (component = {}) => {
       // Add component's private state
       if (E(component.name)) {
-        model.__components[component.name] = O(component.localState);
+        model.__components[component.name] = Object.assign(O(component.localState), { parent: model });
       }
 
       // Decorate actions to present proposal to the model

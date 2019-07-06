@@ -54,9 +54,11 @@ describe('SAM tests', () => {
           ]
         },
         render: (state) => {
+          const localState = state.localState('tester')
           expect(state.status).to.equal('ready')
-          expect(state.localState('tester').color).to.equal('purple')
+          expect(localState.color).to.equal('purple')
           expect(state.color).to.be.equal('blue')
+          expect(localState.parent.color).to.be.equal('blue')
         }
       })
 
