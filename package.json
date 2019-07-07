@@ -1,6 +1,6 @@
 {
   "name": "sam-pattern",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "description": "SAM Pattern library",
   "main": "./dist/sam.js",
   "scripts": {
@@ -51,6 +51,6 @@
     "rollup-plugin-terser": "^5.1.0",
     "uglify-es": "^3.3.9"
   },
-  "unpkg": "dist/sam.js",
+  "unpkg": "dist/SAM.js",
   "dependencies": {}
 }
