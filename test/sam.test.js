@@ -4,7 +4,7 @@ const { expect } = require('chai')
 
 const {
   SAM, first, api, createInstance
-} = require('../dist/sam')
+} = require('../dist/SAM')
 
 const {
   hasNext, addInitialState, addComponent, setRender, travel, addTimeTraveler

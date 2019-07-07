@@ -20,7 +20,7 @@ import {
 } from './lib/sam-utils'
 
 const {
-  addInitialState, addComponent, setRender,
+  addInitialState, addComponent, setRender, addSafetyConditions,
   getIntents, addAcceptors, addReactors, addNAPs
 } = api()
 
@@ -33,6 +33,7 @@ export default {
   addAcceptors,
   addReactors,
   addNAPs,
+  addSafetyConditions,
   getIntents,
   setRender,
   step,

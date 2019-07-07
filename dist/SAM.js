@@ -148,7 +148,7 @@
       reactors.forEach(react);
 
       // render state representation (gated by nap)
-      if (!naps.map(react).reduce(or, false))  {
+      if (!naps.map(react).reduce(or, false)) {
         renderView(model);
       }
     };
@@ -267,6 +267,7 @@
     addAcceptors: (acceptors, privateModel) => SAM$1({ component: { acceptors, privateModel } }),
     addReactors: (reactors, privateModel) => SAM$1({ component: { reactors, privateModel } }),
     addNAPs: (naps, privateModel) => SAM$1({ component: { naps, privateModel } }),
+    addSafetyConditions: (safety, privateModel) => SAM$1({ component: { safety, privateModel } }),
     addTimeTraveler: (history = []) => SAM$1({ history }),
     travel: (index = 0) => SAM$1({ travel: { index } }),
     next: () => SAM$1({ travel: { next: true } }),
@@ -277,7 +278,7 @@
   // ISC License (ISC)
 
   const {
-    addInitialState, addComponent, setRender,
+    addInitialState, addComponent, setRender, addSafetyConditions,
     getIntents, addAcceptors, addReactors, addNAPs
   } = api();
 
@@ -290,6 +291,7 @@
     addAcceptors,
     addReactors,
     addNAPs,
+    addSafetyConditions,
     getIntents,
     setRender,
     step,
