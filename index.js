@@ -18,6 +18,7 @@ import api from './lib/sam-actions'
 import {
   O, A, N, NZ, S, F, E, on, oneOf, or, and, match, step, first
 } from './lib/sam-utils'
+import { checker } from './lib/sam-checker'
 
 const {
   addInitialState, addComponent, setRender, addSafetyConditions,
@@ -25,9 +26,12 @@ const {
 } = api()
 
 export default {
+  // Constructors
   SAM,
   createInstance,
   api,
+
+  // SAM Core
   addInitialState,
   addComponent,
   addAcceptors,
@@ -36,6 +40,8 @@ export default {
   addSafetyConditions,
   getIntents,
   setRender,
+
+  // Utils
   step,
   first,
   match,
@@ -43,5 +49,6 @@ export default {
   oneOf,
   utils: {
     O, A, N, NZ, S, F, E, or, and
-  }
+  },
+  checker
 }

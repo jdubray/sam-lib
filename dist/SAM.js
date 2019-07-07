@@ -130,13 +130,19 @@
     // ancillary
     let renderView = () => null;
     let _render = () => null;
+    let storeRenderView = _render;
     const react = r => r();
     const accept = proposal => a => a(proposal);
     const mount = (arr = [], elements = [], operand = model) => elements.map(el => arr.push(el(operand)));
+    // eslint-disable-next-line arrow-body-style
+    const stringify = (s, pretty) => {
+      return (pretty ? JSON.stringify(s, null, 4) : JSON.stringify(s));
+    };
 
     // Model
     let model = {
       __components: {},
+      __behavior: [],
       localState(name) {
         return E(name) ? this.__components[name] : {}
       }
@@ -153,9 +159,25 @@
       }
     };
 
+    const display = (json, pretty) => {
+      const keys = Object.keys(json);
+      return `{\n${keys.map(key => (key.index('__') === 0 ? '' : stringify(json[key], pretty))).join('\n')} }\n`
+    };
+
+
+    const storeBehavior = (proposal) => {
+      if (E(proposal.__name)) {
+        const actionName = proposal._name;
+        delete proposal.__name;
+        model.__behavior.push(`${actionName}(${display(proposal, true)})\n==> ${display(model, true)}`);
+      }
+    };
+
     const present = (proposal, privateState) => {
       // accept proposal
       acceptors.forEach(accept(proposal));
+
+      storeBehavior(proposal);
 
       // Continue to state representation
       state();
@@ -231,10 +253,21 @@
       renderView(model);
     };
 
+    const setCheck = ({ begin: { resolve }, end }) => {
+      if (E(resolve)) {
+        storeRenderView = renderView;
+        renderView = resolve;
+      }
+
+      if (E(end)) {
+        renderView = storeRenderView;
+      }
+    };
+
     // SAM's internal present function
     return ({
       // eslint-disable-next-line no-shadow
-      initialState, component, render, history, travel, logger
+      initialState, component, render, history, travel, logger, check
     }) => {
       intents = [];
 
@@ -243,7 +276,8 @@
         .on(component, addComponent)
         .on(render, setRender)
         .on(travel, timetravel)
-        .on(logger, setLogger);
+        .on(logger, setLogger)
+        .on(check, setCheck);
 
       return {
         hasNext: model.__hasNext,
@@ -272,7 +306,9 @@
     travel: (index = 0) => SAM$1({ travel: { index } }),
     next: () => SAM$1({ travel: { next: true } }),
     last: () => SAM$1({ travel: { endOfTime: true } }),
-    hasNext: () => SAM$1({}).hasNext
+    hasNext: () => SAM$1({}).hasNext,
+    beginCheck: render => SAM$1({ check: { begin: { render } } }),
+    endCheck: () => SAM$1({ check: { end: true } })
   });
 
   // ISC License (ISC)
