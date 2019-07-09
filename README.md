@@ -104,11 +104,11 @@ SAM's implementation is capable of time traveling (return to a prior state of th
 ### Model Checker
 The library includes a model checker capable of computing the behavior leading to a liveness or safety conditon (see example below). The `checker` method arguments are:
 - `instance`          : The SAM instance used for checking 
-- `intents`           : Model checker intents { `intent`, `name`, `values` } 
+- `intents`           : Model checker intents - `intent`: the SAM intent, `name`: its name, `values`: an array of all possible permutations for the intent arguments } 
 - `reset`             : A function that is called after each iteration to return the model to the proper state, 
 - `liveness`          : a function that takes the application state as an input and returns a liveness condition (exected condition to be reached by some behavior) 
 - `safety`            : a function that takes the application state as an input and returns a safety condition (unexpected occurence of a state)
-- `options`
+- `options`           : checker options that restrict the search space - `depthMax`: how many steps in a behavior, `noDuplicateAction`: whether the model supports duplicate actions (in general it's true) , `doNotStartWith`: an array of intent names that should not be used to start a behavior
 - `success`           : a callback for every liveness condition detected
 - `err`               : a callback for every safety condition detected
 
