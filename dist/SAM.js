@@ -424,12 +424,9 @@
         behaviorIntent([]);
 
         // apply behavior (intent(...values))
-        // behavior = []
         // eslint-disable-next-line no-loop-func
         p.forEach((i, index) => {
           const intentArgs = vector[index];
-          // behavior.push(`${i.name} [${intentArgs.join(', ')}]`)
-          // behaviorIntent && behaviorIntent(behavior)
           i.intent(...intentArgs);
         });
         k++;
