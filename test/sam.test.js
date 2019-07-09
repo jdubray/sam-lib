@@ -6,15 +6,17 @@ const {
   SAM, first, api, createInstance
 } = require('../dist/SAM')
 
+const SAMtest = createInstance()
+
 const {
   hasNext, addInitialState, addComponent, setRender, travel, addTimeTraveler
-} = api()
+} = api(SAMtest)
 
 let tick = () => ({})
 
 describe('SAM tests', () => {
   before(() => {
-    tick = first(SAM({
+    tick = first(SAMtest({
       component: {
         actions: [
           () => ({ test: true })
@@ -25,7 +27,7 @@ describe('SAM tests', () => {
 
   describe('loop', () => {
     it('should create an intent', () => {
-      SAM({
+      SAMtest({
         initialState: {
           counter: 10,
           status: 'ready',
@@ -37,7 +39,7 @@ describe('SAM tests', () => {
     })
 
     it('should add an acceptor and some private state', () => {
-      SAM({
+      SAMtest({
         component: {
           name: 'tester',
           localState: {
@@ -64,7 +66,7 @@ describe('SAM tests', () => {
     })
 
     it('should add a private component with an empty localState', () => {
-      SAM({
+      SAMtest({
         component: {
           name: 'testerWithNoInitialState',
           acceptors: [
@@ -88,7 +90,7 @@ describe('SAM tests', () => {
     })
 
     it('should add to the application state', () => {
-      SAM({
+      SAMtest({
         initialState: {
           warnings: []
         },
@@ -99,7 +101,7 @@ describe('SAM tests', () => {
     })
 
     it('should support asynchronous actions', () => {
-      const { intents } = SAM({
+      const { intents } = SAMtest({
         initialState: {
           counter: 10,
           status: 'ready'
@@ -178,7 +180,7 @@ describe('SAM tests', () => {
 
   describe('timetraveler', () => {
     it('should add traveler with two records of prior history', () => {
-      SAM({
+      SAMtest({
         history: [{
           counter: 10,
           status: 'ready'
@@ -193,14 +195,14 @@ describe('SAM tests', () => {
     })
 
     it('should move to the next state', () => {
-      SAM({
+      SAMtest({
         travel: {
           next: true
         },
         render: state => expect(state.counter).to.equal(10)
       })
 
-      SAM({
+      SAMtest({
         travel: {
           next: true
         },

@@ -67,7 +67,21 @@
     oneOf: triggered ? () => mon() : oneOf
   });
 
-  const clone = state => JSON.parse(JSON.stringify(state));
+  const clone = (state) => {
+    const comps = state.__components;
+    delete state.__components;
+    const cln = JSON.parse(JSON.stringify(state));
+    if (comps) {
+      cln.__components = []; 
+      if (comps.length > 0) {
+        comps.forEach((c) => {
+          delete c.parent;
+          cln.__components.push(Object.assign(clone(c), { parent: cln }));
+        });
+      }
+    }
+    return cln
+  };
 
   var timetraveler = (h = [], options = {}) => (function () {
     let currentIndex = 0;
@@ -126,17 +140,25 @@
     const naps = [];
     let logger;
     const { max } = O(options.timetravel);
+    const { hasAsyncActions = true, instanceName = 'global' } = options;
 
     // ancillary
     let renderView = () => null;
     let _render = () => null;
+    let storeRenderView = _render;
     const react = r => r();
     const accept = proposal => a => a(proposal);
     const mount = (arr = [], elements = [], operand = model) => elements.map(el => arr.push(el(operand)));
+    // eslint-disable-next-line arrow-body-style
+    const stringify = (s, pretty) => {
+      return (pretty ? JSON.stringify(s, null, 4) : JSON.stringify(s))
+    };
 
     // Model
     let model = {
       __components: {},
+      __behavior: [],
+      __name: instanceName,
       localState(name) {
         return E(name) ? this.__components[name] : {}
       }
@@ -153,9 +175,31 @@
       }
     };
 
+    const display = (json = {}, pretty = false) => {
+      const keys = Object.keys(json);
+      return `${keys.map((key) => {
+      if (typeof key !== 'string') {
+        return ''
+      }
+      return key.indexOf('__') === 0 ? '' : stringify(json[key], pretty)
+    }).filter(val => val !== '').join(', ')
+    }`
+    };
+
+
+    const storeBehavior = (proposal) => {
+      if (E(proposal.__name)) {
+        const actionName = proposal.__name;
+        delete proposal.__name;
+        model.__behavior.push(`${actionName}(${display(proposal)}) ==> ${display(model)}`);
+      }
+    };
+
     const present = (proposal, privateState) => {
       // accept proposal
       acceptors.forEach(accept(proposal));
+
+      storeBehavior(proposal);
 
       // Continue to state representation
       state();
@@ -167,6 +211,7 @@
       if (history) {
         history.snap(model, 0);
       }
+      model.__behavior = [];
     };
 
     // eslint-disable-next-line no-shadow
@@ -193,7 +238,17 @@
       }
 
       // Decorate actions to present proposal to the model
-      intents = A(component.actions).map(action => async (...args) => present(await action(...args)));
+      if (hasAsyncActions) {
+        intents = A(component.actions).map(action => async (...args) => {
+          const proposal = await action(...args);
+          present(proposal);
+        });
+      } else {
+        intents = A(component.actions).map(action => (...args) => {
+          const proposal = action(...args);
+          present(proposal);
+        });
+      }
 
       // Add component's acceptors,  reactors, naps and safety condition to SAM instance
       mount(acceptors, component.acceptors, component.localState);
@@ -214,12 +269,16 @@
     const setHistory = (h) => {
       history = timetraveler(h, { max });
       model.__hasNext = history.hasNext();
+      model.__behavior = [];
       renderView = wrap(_render, history.snap);
     };
 
     const timetravel = (travel = {}) => {
       if (E(history)) {
-        if (travel.reset) travel.index = 0;
+        if (travel.reset) {
+          travel.index = 0;
+          model.__behavior = [];
+        }
         if (travel.next) {
           model = history.next();
         } else if (travel.endOfTime) {
@@ -231,10 +290,22 @@
       renderView(model);
     };
 
+    const setCheck = ({ begin = {}, end }) => {
+      const { render } = begin;
+      if (E(render)) {
+        storeRenderView = renderView;
+        renderView = render;
+      }
+
+      if (E(end)) {
+        renderView = storeRenderView;
+      }
+    };
+
     // SAM's internal present function
     return ({
       // eslint-disable-next-line no-shadow
-      initialState, component, render, history, travel, logger
+      initialState, component, render, history, travel, logger, check
     }) => {
       intents = [];
 
@@ -243,7 +314,8 @@
         .on(component, addComponent)
         .on(render, setRender)
         .on(travel, timetravel)
-        .on(logger, setLogger);
+        .on(logger, setLogger)
+        .on(check, setCheck);
 
       return {
         hasNext: model.__hasNext,
@@ -260,6 +332,7 @@
 
   // A set of methods to use the SAM pattern
   var api = (SAM$1 = SAM) => ({
+    // Core SAM API
     addInitialState: initialState => SAM$1({ initialState }),
     addComponent: component => SAM$1({ component }),
     setRender: render => SAM$1({ render }),
@@ -268,12 +341,147 @@
     addReactors: (reactors, privateModel) => SAM$1({ component: { reactors, privateModel } }),
     addNAPs: (naps, privateModel) => SAM$1({ component: { naps, privateModel } }),
     addSafetyConditions: (safety, privateModel) => SAM$1({ component: { safety, privateModel } }),
+
+    // Time Travel
     addTimeTraveler: (history = []) => SAM$1({ history }),
     travel: (index = 0) => SAM$1({ travel: { index } }),
     next: () => SAM$1({ travel: { next: true } }),
     last: () => SAM$1({ travel: { endOfTime: true } }),
-    hasNext: () => SAM$1({}).hasNext
+    hasNext: () => SAM$1({}).hasNext,
+    reset: initialState => (initialState ? SAM$1({ initialState }) : SAM$1({ travel: { reset: true } })),
+
+    // Checker
+    beginCheck: render => SAM$1({ check: { begin: { render } } }),
+    endCheck: () => SAM$1({ check: { end: true } })
   });
+
+  // import SAM from './SAM'
+
+  const permutations = (arr, perms, currentDepth, depthMax, noDuplicateAction, doNotStartWith) => {
+    const nextLevel = [];
+    if (perms.length === 0) {
+      arr.forEach((i) => {
+        if (doNotStartWith.length > 0) {
+          const canAdd = doNotStartWith.map(name => i.name !== name).reduce(and, true);
+          canAdd && nextLevel.push([i]);
+        } else {
+          nextLevel.push([i]);
+        }
+      });
+    } else {
+      perms.forEach(p => arr.forEach((i) => {
+        const col = p.concat([i]);
+        if (noDuplicateAction) {
+          if (p[p.length - 1] !== i) {
+            nextLevel.push(col);
+          }
+        } else {
+          nextLevel.push(col);
+        }
+      }));
+    }
+    currentDepth++;
+    if (currentDepth < depthMax) {
+      return permutations(arr, nextLevel, currentDepth, depthMax, noDuplicateAction, doNotStartWith)
+    }
+    return nextLevel.filter(run => run.length === depthMax)
+  };
+
+  const apply = (perms = [], reset, behaviorIntent) => {
+    let behavior;
+    perms.forEach((p) => {
+      let currentIndeces = [];
+      const indexMax = p.map(intent => A(O(intent).values).length);
+      const modMax = indexMax.map((val, index) => {
+        let out = 1;
+        for (let j = index; j < indexMax.length; j++) {
+          out *= indexMax[j];
+        }
+        return out
+      });
+      const increment = currentIndex => modMax.map(
+        (m, index) => {
+          if (index === modMax.length - 1) {
+            return currentIndex % indexMax[index]
+          }
+          return Math.floor(currentIndex / modMax[index + 1]) % indexMax[index]
+        }
+      );
+      for (let i = 0; i < p.length; i++) {
+        currentIndeces.push(0);
+      }
+      let k = 0;
+      const kmax = indexMax.reduce((acc, val) => acc * val, 1);
+      if (kmax === 0) {
+        throw new Error(['Checker: invalid dataset, one of the intents values has no value.',
+          'If an intent has no parameter, add an empty array to its values'].join('\n'))
+      }
+      do {
+        // eslint-disable-next-line no-loop-func
+        const vector = p.map((i, index) => i.values[currentIndeces[index]]);
+        // return to initial state
+        reset();
+        behaviorIntent([]);
+
+        // apply behavior (intent(...values))
+        // behavior = []
+        // eslint-disable-next-line no-loop-func
+        p.forEach((i, index) => {
+          const intentArgs = vector[index];
+          // behavior.push(`${i.name} [${intentArgs.join(', ')}]`)
+          // behaviorIntent && behaviorIntent(behavior)
+          i.intent(...intentArgs);
+        });
+        k++;
+        currentIndeces = increment(k);
+      } while (k < kmax)
+    });
+    return behavior
+  };
+
+
+  const checker = ({
+    instance, initialState = {}, intents = [], reset, liveness, safety, options
+  }, success = () => null, err = () => null) => {
+    const { beginCheck, endCheck } = api(instance);
+    const { depthMax = 5, noDuplicateAction = false, doNotStartWith = [] } = options;
+
+    const behaviorIntent = instance({
+      component: {
+        actions: [
+          __behavior => ({ __behavior })
+        ],
+        acceptors: [
+          model => ({ __behavior }) => {
+            if (E(__behavior)) {
+              model.__behavior = __behavior;
+            }
+          }
+        ]
+      }
+    }).intents[0];
+
+    const behavior = [];
+
+    beginCheck((state) => {
+      if (liveness && liveness(state)) {
+        // console.log('check check', state)
+        behavior.push({ liveness: state.__behavior });
+        success(state.__behavior);
+      }
+      if (safety && safety(state)) {
+        behavior.push({ safety: state.__behavior });
+        err(state.__behavior);
+      }
+    });
+    apply(
+      permutations(intents, [], 0, depthMax, noDuplicateAction, doNotStartWith),
+      () => reset(initialState),
+      behaviorIntent
+    );
+    endCheck();
+    return behavior
+  };
 
   // ISC License (ISC)
 
@@ -283,9 +491,12 @@
   } = api();
 
   var index = {
+    // Constructors
     SAM,
     createInstance,
     api,
+
+    // SAM Core
     addInitialState,
     addComponent,
     addAcceptors,
@@ -294,6 +505,8 @@
     addSafetyConditions,
     getIntents,
     setRender,
+
+    // Utils
     step,
     first,
     match,
@@ -301,7 +514,8 @@
     oneOf,
     utils: {
       O, A, N, NZ, S, F, E, or, and
-    }
+    },
+    checker
   };
 
   return index;
