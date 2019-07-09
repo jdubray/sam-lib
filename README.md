@@ -315,9 +315,6 @@ const {
 
 let checkerIntents = []
 
-
-// addTimeTraveler()
-
 addInitialState({
   n: 2,
   jugs: [0, 0],
