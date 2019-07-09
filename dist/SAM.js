@@ -140,7 +140,7 @@
     const naps = [];
     let logger;
     const { max } = O(options.timetravel);
-    const { hasAsyncActions = true } = options;
+    const { hasAsyncActions = true, instanceName = 'global' } = options;
 
     // ancillary
     let renderView = () => null;
@@ -151,13 +151,14 @@
     const mount = (arr = [], elements = [], operand = model) => elements.map(el => arr.push(el(operand)));
     // eslint-disable-next-line arrow-body-style
     const stringify = (s, pretty) => {
-      return (pretty ? JSON.stringify(s, null, 4) : JSON.stringify(s));
+      return (pretty ? JSON.stringify(s, null, 4) : JSON.stringify(s))
     };
 
     // Model
     let model = {
       __components: {},
       __behavior: [],
+      __name: instanceName,
       localState(name) {
         return E(name) ? this.__components[name] : {}
       }
@@ -174,32 +175,31 @@
       }
     };
 
-    const display = (json = {}, pretty) => {
+    const display = (json = {}, pretty = false) => {
       const keys = Object.keys(json);
-      return `{\n${keys.map((key) => {
+      return `${keys.map((key) => {
       if (typeof key !== 'string') {
         return ''
       }
       return key.indexOf('__') === 0 ? '' : stringify(json[key], pretty)
-    }).join('\n')
-    }\n}\n`
+    }).filter(val => val !== '').join(', ')
+    }`
     };
 
 
     const storeBehavior = (proposal) => {
       if (E(proposal.__name)) {
-        const actionName = proposal._name;
+        const actionName = proposal.__name;
         delete proposal.__name;
-        model.__behavior.push(`${actionName}(${display(proposal, true)})\n==> ${display(model, true)}`);
+        model.__behavior.push(`${actionName}(${display(proposal)}) ==> ${display(model)}`);
       }
     };
 
-    const present = async (proposal, privateState) => {
+    const present = (proposal, privateState) => {
       // accept proposal
-      const prop = await proposal;
-      acceptors.forEach(accept(prop));
+      acceptors.forEach(accept(proposal));
 
-      storeBehavior(prop);
+      storeBehavior(proposal);
 
       // Continue to state representation
       state();
@@ -211,6 +211,7 @@
       if (history) {
         history.snap(model, 0);
       }
+      model.__behavior = [];
     };
 
     // eslint-disable-next-line no-shadow
@@ -238,12 +239,14 @@
 
       // Decorate actions to present proposal to the model
       if (hasAsyncActions) {
-        intents = A(component.actions).map(action => (...args) => {
-          present(action(...args));
+        intents = A(component.actions).map(action => async (...args) => {
+          const proposal = await action(...args);
+          present(proposal);
         });
       } else {
         intents = A(component.actions).map(action => (...args) => {
-          present(action(...args));
+          const proposal = action(...args);
+          present(proposal);
         });
       }
 
@@ -345,31 +348,47 @@
     next: () => SAM$1({ travel: { next: true } }),
     last: () => SAM$1({ travel: { endOfTime: true } }),
     hasNext: () => SAM$1({}).hasNext,
-    reset: () => SAM$1({ travel: { reset: true } }),
+    reset: initialState => (initialState ? SAM$1({ initialState }) : SAM$1({ travel: { reset: true } })),
 
     // Checker
     beginCheck: render => SAM$1({ check: { begin: { render } } }),
     endCheck: () => SAM$1({ check: { end: true } })
   });
 
-  const permutations = (arr, perms, currentDepth, depthMax) => {
+  // import SAM from './SAM'
+
+  const permutations = (arr, perms, currentDepth, depthMax, noDuplicateAction, doNotStartWith) => {
     const nextLevel = [];
     if (perms.length === 0) {
-      arr.forEach(i => nextLevel.push([i]));
+      arr.forEach((i) => {
+        if (doNotStartWith.length > 0) {
+          const canAdd = doNotStartWith.map(name => i.name !== name).reduce(and, true);
+          canAdd && nextLevel.push([i]);
+        } else {
+          nextLevel.push([i]);
+        }
+      });
     } else {
       perms.forEach(p => arr.forEach((i) => {
         const col = p.concat([i]);
-        nextLevel.push(col);
+        if (noDuplicateAction) {
+          if (p[p.length - 1] !== i) {
+            nextLevel.push(col);
+          }
+        } else {
+          nextLevel.push(col);
+        }
       }));
     }
     currentDepth++;
     if (currentDepth < depthMax) {
-      return permutations(arr, nextLevel, currentDepth, depthMax)
+      return permutations(arr, nextLevel, currentDepth, depthMax, noDuplicateAction, doNotStartWith)
     }
-    return nextLevel
+    return nextLevel.filter(run => run.length === depthMax)
   };
 
-  const apply = (perms = [], reset) => {
+  const apply = (perms = [], reset, behaviorIntent) => {
+    let behavior;
     perms.forEach((p) => {
       let currentIndeces = [];
       const indexMax = p.map(intent => A(O(intent).values).length);
@@ -402,67 +421,67 @@
         const vector = p.map((i, index) => i.values[currentIndeces[index]]);
         // return to initial state
         reset();
+        behaviorIntent([]);
+
         // apply behavior (intent(...values))
+        // behavior = []
+        // eslint-disable-next-line no-loop-func
         p.forEach((i, index) => {
           const intentArgs = vector[index];
-          return i.intent(...intentArgs)
+          // behavior.push(`${i.name} [${intentArgs.join(', ')}]`)
+          // behaviorIntent && behaviorIntent(behavior)
+          i.intent(...intentArgs);
         });
         k++;
         currentIndeces = increment(k);
       } while (k < kmax)
     });
+    return behavior
   };
 
 
   const checker = ({
-    instance = SAM, intents = [], liveness, safety, depthMax = 5
-  }) => {
+    instance, initialState = {}, intents = [], reset, liveness, safety, options
+  }, success = () => null, err = () => null) => {
     const { beginCheck, endCheck } = api(instance);
-    return new Promise((resolve, reject) => {
-      beginCheck((state) => {
-        liveness && liveness(state) && resolve(state);
-        safety && safety(state) && reject(state);
-      });
-      apply(
-        permutations(intents, [], 0, depthMax),
-        () => instance({ travel: { reset: true } })
-      );
-      endCheck();
-      reject(new Error('could not find liveness or safety conditions'));
-    })
+    const { depthMax = 5, noDuplicateAction = false, doNotStartWith = [] } = options;
+
+    const behaviorIntent = instance({
+      component: {
+        actions: [
+          __behavior => ({ __behavior })
+        ],
+        acceptors: [
+          model => ({ __behavior }) => {
+            if (E(__behavior)) {
+              model.__behavior = __behavior;
+            }
+          }
+        ]
+      }
+    }).intents[0];
+
+    const behavior = [];
+
+    beginCheck((state) => {
+      if (liveness && liveness(state)) {
+        // console.log('check check', state)
+        behavior.push({ liveness: state.__behavior });
+        success(state.__behavior);
+      }
+      if (safety && safety(state)) {
+        behavior.push({ safety: state.__behavior });
+        err(state.__behavior);
+      }
+    });
+    apply(
+      permutations(intents, [], 0, depthMax, noDuplicateAction, doNotStartWith),
+      () => reset(initialState),
+      behaviorIntent
+    );
+    endCheck();
+    return behavior
   };
-
-
-  // [a,b,c]
-  //  a
-  //  a      b          c
-  //  a b c  a b c      a b c
-  // aaa, aab, aac, aba, abb, abc, aca, acb, acc
-  // [[0,1], [0,1,2], [0,1,2,3]
-  // a(0) b(0) c(0)
-  // a(1) a(0) a(0)
-  // a(1) a(1) a(0)
-  // a(1) a(1) a(1)
-
-
-  // [[0,1], [0,1,2], [0,1,2,3]]
-  // 3 x 2 x 4 = 24
-
-  // for (k = 0; k < max[0]; k++) {
-  //    for(i = 0; i < max[1]; i++) {
-  //      for(j = 0; j<max[2] ) {
-  //         reset()
-  //         arg = [vals[k], vals[i], vals[j]]
-  //         p.forEach(i,index => i.intent(...args[index]))
-  //      }
-  //    }
-  // }
-
-  // int o = k+1 * i+1 * j+1
-  // 12 = % kmax * imax -> 6
-  // 4 = 0, 1, 0
-  // 8 = 0, 2 = o / max[col+1] % max[col], 0 = o % max[col]
-  // 12 = 1 = o / max[col+1] * max[col+2] % max[col], 0 = o / 4 % 3, 0 = o % max[col]
 
   // ISC License (ISC)
 

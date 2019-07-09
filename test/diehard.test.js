@@ -11,17 +11,17 @@ const { utils: { E, or } } = require('../dist/SAM')
 
 const { checker } = require('../dist/SAM')
 
-const dieHarder = createInstance({ hasAsyncActions: false })
+const dieHarder = createInstance({ hasAsyncActions: false, instanceName: 'dieharder' })
 
 const {
-  addInitialState, addComponent, setRender, addTimeTraveler
+  addInitialState, addComponent, setRender
 } = api(dieHarder)
 
 let checkerIntents = []
 
 describe('SAM examples: dieharder', () => {
-  it('should initialize the jugs and the goal', () => {
-    addTimeTraveler()
+  it('should check the model and find a solution', () => {
+    // addTimeTraveler()
 
     addInitialState({
       n: 2,
@@ -29,9 +29,7 @@ describe('SAM examples: dieharder', () => {
       capacity: [3, 5],
       goal: 4
     })
-  })
 
-  it('should add the juggler component and juggle to the goal', () => {
     const { intents } = addComponent({
       actions: [
         (j1, j2) => ({
@@ -83,35 +81,22 @@ describe('SAM examples: dieharder', () => {
       fill
     ] = intents
 
-    fill(1)
-    jug2jug(1, 0)
-    empty(0)
-    jug2jug(1, 0)
-    fill(1)
-    jug2jug(1, 0)
-
     checkerIntents = [{
-      intent: (...args) => {
-        fill(...args)
-      },
+      intent: fill,
       name: 'fill',
       values: [
         [0],
         [1]
       ]
     }, {
-      intent: (...args) => {
-        empty(...args)
-      },
+      intent: empty,
       name: 'empty',
       values: [
         [0],
         [1]
       ]
     }, {
-      intent: (...args) => {
-        jug2jug(...args)
-      },
+      intent: jug2jug,
       name: 'jug2jug',
       values: [
         [0, 1],
@@ -119,21 +104,32 @@ describe('SAM examples: dieharder', () => {
       ]
     }
     ]
-  })
 
-  it('should check the model', async (done) => {
-    const behavior = await checker({
+    // Solution
+    // fill(1)
+    // jug2jug(1, 0)
+    // empty(0)
+    // jug2jug(1, 0)
+    // fill(1)
+    // jug2jug(1, 0)
+
+    const results = checker({
       instance: dieHarder,
+      initialState: { jugs: [0, 0] },
       intents: checkerIntents,
-      liveness: ({ goal, jugs = [] }) => jugs.map(content => content === goal).reduce(or),
-      safety: ({ jugs = [], capacity = [] }) => jugs.map((content, index) => content < capacity[index]).reduce(or),
-    //   liveness: (state) => state.jugs.map(content => content === state.goal).reduce(or),
-    //   safety: (state) => state.jugs.map((content, index) => content < state.capacity[index]).reduce(or),
-      depthMax: 6
+      reset: () => {
+        empty(0)
+        empty(1)
+      },
+      liveness: ({ goal, jugs = [] }) => jugs.map(content => content === goal).reduce(or, false),
+      safety: ({ jugs = [], capacity = [] }) => jugs.map((content, index) => content > capacity[index]).reduce(or, false),
+      options: { depthMax: 6, noDuplicateAction: true, doNotStartWith: ['empty', 'jug2jug'] }
+    }, (behavior) => {
+      // console.log(`\nThe model checker found this behavior to reach the liveness condition:\n${behavior.join('\n')}\n`)
+    }, (err) => {
+      // console.log('The model checker detected a safety condition: ', err)
     })
 
-    expect(behavior).to.exist
-
-    done()
+    expect(results.length).to.equal(2)
   }).timeout(60000)
 })
