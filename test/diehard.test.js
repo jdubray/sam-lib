@@ -21,7 +21,6 @@ let checkerIntents = []
 
 describe('SAM examples: dieharder', () => {
   it('should check the model and find a solution', () => {
-    // addTimeTraveler()
 
     addInitialState({
       n: 2,
@@ -105,7 +104,9 @@ describe('SAM examples: dieharder', () => {
     }
     ]
 
-    // Solution
+    // Solution to reach a volume of 4 units from
+    // two jugs (3,5)
+    //
     // fill(1)
     // jug2jug(1, 0)
     // empty(0)
@@ -123,11 +124,21 @@ describe('SAM examples: dieharder', () => {
       },
       liveness: ({ goal, jugs = [] }) => jugs.map(content => content === goal).reduce(or, false),
       safety: ({ jugs = [], capacity = [] }) => jugs.map((content, index) => content > capacity[index]).reduce(or, false),
-      options: { depthMax: 6, noDuplicateAction: true, doNotStartWith: ['empty', 'jug2jug'] }
-    }, (behavior) => {
-      // console.log(`\nThe model checker found this behavior to reach the liveness condition:\n${behavior.join('\n')}\n`)
-    }, (err) => {
-      // console.log('The model checker detected a safety condition: ', err)
+      options: {
+        depthMax: 6,
+        noDuplicateAction: true,
+        doNotStartWith: ['empty', 'jug2jug'],
+        format: (actionName, proposal, model) => {
+          const act = `${actionName}(${JSON.stringify(proposal.fill || proposal.jug2jug || proposal.empty || 0)})`
+          return `${act.padEnd(30, ' ')}==> ${JSON.stringify(model.jugs)} (goal: ${model.goal})`
+        }
+      }
+    },
+    (behavior) => {
+      console.log(`\nThe model checker found this behavior to reach the liveness condition:\n${behavior.join('\n')}\n`)
+    },
+    (err) => {
+      console.log('The model checker detected a safety condition: ', err)
     })
 
     expect(results.length).to.equal(2)

@@ -191,7 +191,10 @@
       if (E(proposal.__name)) {
         const actionName = proposal.__name;
         delete proposal.__name;
-        model.__behavior.push(`${actionName}(${display(proposal)}) ==> ${display(model)}`);
+        const behavior = model.__formatBehavior
+          ? model.__formatBehavior(actionName, proposal, model)
+          : `${actionName}(${display(proposal)}) ==> ${display(model)}`;
+        model.__behavior.push(behavior);
       }
     };
 
@@ -441,22 +444,32 @@
     instance, initialState = {}, intents = [], reset, liveness, safety, options
   }, success = () => null, err = () => null) => {
     const { beginCheck, endCheck } = api(instance);
-    const { depthMax = 5, noDuplicateAction = false, doNotStartWith = [] } = options;
+    const {
+      depthMax = 5, noDuplicateAction = false, doNotStartWith = [], format
+    } = options;
 
-    const behaviorIntent = instance({
+    const [behaviorIntent, formatIntent] = instance({
       component: {
         actions: [
-          __behavior => ({ __behavior })
+          __behavior => ({ __behavior }),
+          __setFormatBehavior => ({ __setFormatBehavior })
         ],
         acceptors: [
           model => ({ __behavior }) => {
             if (E(__behavior)) {
               model.__behavior = __behavior;
             }
+          },
+          model => ({ __setFormatBehavior }) => {
+            if (E(__setFormatBehavior)) {
+              model.__formatBehavior = __setFormatBehavior;
+            }
           }
         ]
       }
-    }).intents[0];
+    }).intents;
+
+    formatIntent(format);
 
     const behavior = [];
 
@@ -474,8 +487,7 @@
     apply(
       permutations(intents, [], 0, depthMax, noDuplicateAction, doNotStartWith),
       () => reset(initialState),
-      behaviorIntent
-    );
+      behaviorIntent);
     endCheck();
     return behavior
   };

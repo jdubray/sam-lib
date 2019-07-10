@@ -404,7 +404,6 @@ checkerIntents = [{
 
 checker({
   instance: dieHarder,
-  initialState: { jugs: [0, 0] },
   intents: checkerIntents,
   reset: () => {
     empty(0)
@@ -412,7 +411,15 @@ checker({
   },
   liveness: ({ goal, jugs = [] }) => jugs.map(content => content === goal).reduce(or, false),
   safety: ({ jugs = [], capacity = [] }) => jugs.map((content, index) => content > capacity[index]).reduce(or, false),
-  options: { depthMax: 6, noDuplicateAction: true, doNotStartWith: ['empty', 'jug2jug'] }
+  options: {
+    depthMax: 6,
+    noDuplicateAction: true,
+    doNotStartWith: ['empty', 'jug2jug'],
+    format: (actionName, proposal, model) => {
+        const act = `${actionName}(${JSON.stringify(proposal.fill || proposal.jug2jug || proposal.empty || 0)})`
+        return `${act.padEnd(30, ' ')}==> ${JSON.stringify(model.jugs)} (goal: ${model.goal})`
+    }
+  }
 }, (behavior) => {
   console.log(`\nthe model checker found this behavior to reach the liveness condition:\n${behavior.join('\n')}\n`)
 }, (err) => {
@@ -420,23 +427,23 @@ checker({
 })
 
 // Expected output
-// the model checker found this behavior to reach the liveness condition:
-// fill(1) ==> , 2, [0,5], [3,5], 4
-// jug2jug({"j1":1,"j2":0}) ==> , 2, [3,2], [3,5], 4
-// empty(0) ==> , 2, [0,2], [3,5], 4
-// jug2jug({"j1":1,"j2":0}) ==> , 2, [2,0], [3,5], 4
-// fill(1) ==> , 2, [2,5], [3,5], 4
-// jug2jug({"j1":1,"j2":0}) ==> , 2, [3,4], [3,5], 4
+// The model checker found this behavior to reach the liveness condition:
+// fill(1)                       ==> [0,5] (goal: 4)
+// jug2jug({"j1":1,"j2":0})      ==> [3,2] (goal: 4)
+// empty(0)                      ==> [0,2] (goal: 4)
+// jug2jug({"j1":1,"j2":0})      ==> [2,0] (goal: 4)
+// fill(1)                       ==> [2,5] (goal: 4)
+// jug2jug({"j1":1,"j2":0})      ==> [3,4] (goal: 4)
 
 
-// the model checker found this behavior to reach the liveness condition:
-// fill(1) ==> , 2, [0,5], [3,5], 4
-// jug2jug({"j1":1,"j2":0}) ==> , 2, [3,2], [3,5], 4
-// empty(0) ==> , 2, [0,2], [3,5], 4
-// jug2jug({"j1":1,"j2":0}) ==> , 2, [2,0], [3,5], 4
-// fill(1) ==> , 2, [2,5], [3,5], 4
-// jug2jug({"j1":1,"j2":0}) ==> , 2, [3,4], [3,5], 4
-// empty(0) ==> , 2, [0,4], [3,5], 4
+// The model checker found this behavior to reach the liveness condition:
+// fill(1)                       ==> [0,5] (goal: 4)
+// jug2jug({"j1":1,"j2":0})      ==> [3,2] (goal: 4)
+// empty(0)                      ==> [0,2] (goal: 4)
+// jug2jug({"j1":1,"j2":0})      ==> [2,0] (goal: 4)
+// fill(1)                       ==> [2,5] (goal: 4)
+// jug2jug({"j1":1,"j2":0})      ==> [3,4] (goal: 4)
+// empty(0)                      ==> [0,4] (goal: 4)
 ```
 
 ## Notes
