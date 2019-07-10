@@ -135,10 +135,10 @@ describe('SAM examples: dieharder', () => {
       }
     },
     (behavior) => {
-      console.log(`\nThe model checker found this behavior to reach the liveness condition:\n${behavior.join('\n')}\n`)
+      // console.log(`\nThe model checker found this behavior to reach the liveness condition:\n${behavior.join('\n')}\n`)
     },
     (err) => {
-      console.log('The model checker detected a safety condition: ', err)
+      // console.log('The model checker detected a safety condition: ', err)
     })
 
     expect(results.length).to.equal(2)
