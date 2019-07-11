@@ -73,7 +73,10 @@ const [inc] = intents
 inc() 
 ```
 
-A code sample is available [here](https://codepen.io/sam-pattern/pen/qzYQgd)
+### Code Samples
+[Rocket Launcher](https://codepen.io/sam-pattern/pen/qzYQgd)
+
+[ToDoMVC](https://github.com/jdubray/sam-samples/tree/master/todomvc-app)
 
 ## Library
 
@@ -92,6 +95,9 @@ A code sample is available [here](https://codepen.io/sam-pattern/pen/qzYQgd)
 - `setRender`         : sets the render method
 
 - `step`              : a simple action that executes a SAM step without changing the application state
+
+A component specification includes options:
+- `ignoreOutdatedProposals` when true, the model's will reject all action proposals that out of order. The component's actions are automatically timestamped upon starting. The model keeps track of the last proposal's processed. In the event that a proposal comes after another more recent one was processed, it will be rejected. Note: this option is only available for asynchronous actions.
 
 ### Time Travel
 SAM's implementation is capable of time traveling (return to a prior state of the model)

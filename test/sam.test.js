@@ -128,7 +128,7 @@ describe('SAM tests', () => {
       test()
     })
 
-    it('should roll back when a safety condition is detected', () => {
+    it('should roll back when a safety condition is detected', (done) => {
       const SafeSAM = createInstance()
       const { intents } = SafeSAM({
         initialState: {
@@ -138,7 +138,8 @@ describe('SAM tests', () => {
         history: [],
         component: {
           actions: [
-            () => ({ incBy: 1 })
+            () => ({ incBy: 1 }),
+            () => setTimeout(() => ({ incBy: 1 }), 1000)
           ],
           acceptors: [
             model => ({ incBy }) => {
@@ -159,7 +160,10 @@ describe('SAM tests', () => {
               expression: model => model.counter > 10,
               name: 'Counter value is dangerously high'
             }
-          ]
+          ],
+          options: {
+            ignoreOutdatedProposals: true
+          }
         },
         logger: {
           error: (err) => {
@@ -172,9 +176,11 @@ describe('SAM tests', () => {
         }
       })
 
-      const [inc] = intents
+      const [inc, incLater] = intents
 
+      incLater()
       inc()
+      setTimeout(done, 1500)
     })
   })
 

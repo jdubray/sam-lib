@@ -159,6 +159,7 @@
       __components: {},
       __behavior: [],
       __name: instanceName,
+      __lastProposalTimestamp: 0,
       localState(name) {
         return E(name) ? this.__components[name] : {}
       }
@@ -199,6 +200,12 @@
     };
 
     const present = (proposal, privateState) => {
+      if (proposal.__startTime) {
+        if (proposal.__startTime <= model.__lastProposalTimestamp) {
+          return
+        }
+        proposal.__startTime = model.__lastProposalTimestamp;
+      }
       // accept proposal
       acceptors.forEach(accept(proposal));
 
@@ -234,6 +241,8 @@
 
     // add one component at a time, returns array of intents from actions
     const addComponent = (component = {}) => {
+      const { ignoreOutdatedProposals = false } = component.options || {};
+
       // Add component's private state
       if (E(component.name)) {
         model.__components[component.name] = Object.assign(O(component.localState), { parent: model });
@@ -243,7 +252,11 @@
       // Decorate actions to present proposal to the model
       if (hasAsyncActions) {
         intents = A(component.actions).map(action => async (...args) => {
+          const startTime = new Date().getTime();
           const proposal = await action(...args);
+          if (ignoreOutdatedProposals) {
+            proposal.__startTime = startTime;
+          }
           present(proposal);
         });
       } else {
