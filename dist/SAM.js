@@ -122,6 +122,33 @@
     }
   }());
 
+  const ModelClass = function (name) {
+    this.__components = {};
+    this.__behavior = [];
+    this.__name = name;
+    this.__lastProposalTimestamp = 0;
+  };
+
+  ModelClass.prototype.localState = function (name) {
+    return E(name) ? this.__components[name] : {}
+  };
+
+  ModelClass.prototype.hasError = function () {
+    return E(this.__error)
+  };
+
+  ModelClass.prototype.error = function () {
+    return this.__error || undefined
+  };
+
+  ModelClass.prototype.errorMessage = function () {
+    return O(this.__error).message
+  };
+
+  ModelClass.prototype.clearError = function () {
+    return delete this.__error
+  };
+
   // ISC License (ISC)
 
   // This is an implementation of SAM using SAM's own principles
@@ -130,17 +157,28 @@
   // - SAM's present function
 
   function createInstance (options = {}) {
+    const { max } = O(options.timetravel);
+    const { hasAsyncActions = true, instanceName = 'global' } = options;
+
     // SAM's internal model
     let intents;
     let history;
-    const acceptors = [];
-    const reactors = [model => () => {
-      model.__hasNext = history ? history.hasNext() : false;
-    }];
+    let model = new ModelClass(instanceName);
+    const mount = (arr = [], elements = [], operand = model) => elements.map(el => arr.push(el(operand)));
+    const acceptors = [
+      ({ __error }) => {
+        if (__error) {
+          model.__error = __error;
+        }
+      }
+    ];
+    const reactors = [
+      () => {
+        model.__hasNext = history ? history.hasNext() : false;
+      }
+    ];
     const naps = [];
     let logger;
-    const { max } = O(options.timetravel);
-    const { hasAsyncActions = true, instanceName = 'global' } = options;
 
     // ancillary
     let renderView = () => null;
@@ -148,31 +186,25 @@
     let storeRenderView = _render;
     const react = r => r();
     const accept = proposal => a => a(proposal);
-    const mount = (arr = [], elements = [], operand = model) => elements.map(el => arr.push(el(operand)));
     // eslint-disable-next-line arrow-body-style
     const stringify = (s, pretty) => {
       return (pretty ? JSON.stringify(s, null, 4) : JSON.stringify(s))
     };
 
     // Model
-    let model = {
-      __components: {},
-      __behavior: [],
-      __name: instanceName,
-      __lastProposalTimestamp: 0,
-      localState(name) {
-        return E(name) ? this.__components[name] : {}
-      }
-    };
 
     // State Representation
     const state = () => {
-      // Compute state representation
-      reactors.forEach(react);
+      try {
+        // Compute state representation
+        reactors.forEach(react);
 
-      // render state representation (gated by nap)
-      if (!naps.map(react).reduce(or, false)) {
-        renderView(model);
+        // render state representation (gated by nap)
+        if (!naps.map(react).reduce(or, false)) {
+          renderView(model);
+        }
+      } catch (err) {
+        setTimeout(present({ __error: err }), 0);
       }
     };
 
@@ -241,8 +273,13 @@
 
     // add one component at a time, returns array of intents from actions
     const addComponent = (component = {}) => {
-      const { ignoreOutdatedProposals = false, debounce = 0 } = component.options || {};
-      
+      const { ignoreOutdatedProposals = false, debounce = 0, retry } = component.options || {};
+
+      if (retry) {
+        retry.max = retry.max || 1;
+        retry.delay = retry.delay || 0;
+      }
+
       // Add component's private state
       if (E(component.name)) {
         model.__components[component.name] = Object.assign(O(component.localState), { parent: model });
@@ -254,7 +291,8 @@
         intents = A(component.actions).map((action) => {
           let needsDebounce = false;
           const debounceDelay = debounce;
-          
+          let retryCount = 0;
+
           const intent = async (...args) => {
             const startTime = new Date().getTime();
 
@@ -263,13 +301,31 @@
               return
             }
 
-            const proposal = await action(...args);
+            let proposal = {};
+            try {
+              proposal = await action(...args);
+            } catch (err) {
+              if (retry) {
+                retryCount += 1;
+                if (retryCount < retry.max) {
+                  setTimeout(() => intent(...args), retry.delay);
+                }
+                return
+              }
+              proposal.__error = err;
+            }
 
             if (ignoreOutdatedProposals) {
               proposal.__startTime = startTime;
             }
 
-            present(proposal);
+            try {
+              retryCount = 0;
+              present(proposal);
+            } catch (err) {
+              // uncaught exception in an acceptor
+              present({ __error: err });
+            }
 
             if (debounceDelay > 0) {
               needsDebounce = true;

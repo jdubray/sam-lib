@@ -219,6 +219,94 @@ describe('SAM tests', () => {
 
       done()
     })
+
+    it('should handle action exceptions', () => {
+      const SAMErroreTest = createInstance({ instanceName: 'error' })
+
+      expect(SAMErroreTest).to.not.equal(SAM)
+
+      const { intents } = SAMErroreTest({
+        initialState: {
+          counter: 0
+        },
+
+        component: {
+          actions: [
+            () => {
+              throw new Error('Baam!')
+            }
+          ],
+          acceptors: [
+            model => (proposal) => {
+              model.counter += proposal.incBy || 1
+            }
+          ]
+        },
+
+        render: (state) => {
+          expect(state.hasError()).to.be.true
+          expect(state.errorMessage()).to.be.equal('Baam!')
+        }
+      })
+
+      const [inc] = intents
+
+      inc()
+    })
+
+    it('should handle action exceptions and retry 3 times', () => {
+      const SAMERetryTest = createInstance({ instanceName: 'retry' })
+
+      expect(SAMERetryTest).to.not.equal(SAM)
+
+      let retryCounter = 0
+
+      const { intents } = SAMERetryTest({
+        initialState: {
+          counter: 0
+        },
+
+        component: {
+          actions: [
+            () => {
+              if (retryCounter < 2) {
+                retryCounter++
+                throw new Error('Baam!')
+              }
+              return ({ incBy: 1 })
+            }
+          ],
+          acceptors: [
+            model => (proposal) => {
+              model.counter += proposal.incBy || 1
+            }
+          ],
+          options: {
+            retry: {
+              retryMax: 3,
+              retryDelay: 50
+            }
+          }
+        },
+
+        render: (state) => {
+          if (retryCounter < 2) {
+            expect(state.hasError()).to.be.true
+            expect(state.errorMessage()).to.be.equal('Baam!')
+            state.clearError()
+            expect(state.hasError()).to.be.false
+          } else {
+            expect(state.counter).to.equal(1)
+          }
+        }
+      })
+
+      const [inc] = intents
+
+      // We call the intent once,
+      // the SAM instance will retry 3 times
+      inc()
+    })
   })
 
   describe('timetraveler', () => {

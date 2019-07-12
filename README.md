@@ -99,6 +99,7 @@ inc()
 A component specification includes options:
 - `ignoreOutdatedProposals` when true, the model's will reject all action proposals that out of order. In the event that a proposal comes after another more recent one was processed, it will be rejected. Note: this option is only available for asynchronous actions.
 - `debounce` when providing a value greater than 0, all intents of the corresponding component will be debounced by that amount in ms. Note: this option is only available for asynchronous actions.
+- `retry` { `delay`, `max` } when specified, it will retry invoking an intent in case of an unhandled exception up to `max` times and after `delay` ms.
 
 ### Time Travel
 SAM's implementation is capable of time traveling (return to a prior state of the model)
@@ -124,6 +125,25 @@ The library includes a model checker capable of computing the behavior leading t
 - `match`             : Given an array of booleans and an array object, it returns the first object which corresponding boolean value is true
 - `on`                : a helper function which takes an object `o` and a function `f` as arguments and calls `f(o)` if the object exists. `on` calls can be chained. This function to chain a series of acceptors
 - `oneOf`             : same as `on` but will stop after the first value that is found to exist
+
+## Exception Handling
+
+SAM handles all uncaught action, acceptor, reactor and nap exceptions. The application model and state representation expose four methods to check for exceptions:
+- `hasError`  
+- `error`
+- `errorMessage`
+- `clearError`
+
+When a component has been defined with the options: `{ retry: { max: 3, delay: 100}}` all its actions will be retried up to `3` times every `100`ms.
+
+```javascript
+render: (state) => {
+  if (state.hasError()) {
+    console.log(state.errorMessage())
+    state.clearError()
+  } 
+}
+```
 
 ## Code samples
 
@@ -501,6 +521,7 @@ checker({
 
 ## Change Log
 
+1.3.7 adds exception handling
 1.3.6 adds a debounce mode
 1.3.5 adds a new component option to skip processing outdated proposals
 
