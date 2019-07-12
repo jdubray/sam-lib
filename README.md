@@ -97,7 +97,8 @@ inc()
 - `step`              : a simple action that executes a SAM step without changing the application state
 
 A component specification includes options:
-- `ignoreOutdatedProposals` when true, the model's will reject all action proposals that out of order. The component's actions are automatically timestamped upon starting. The model keeps track of the last proposal's processed. In the event that a proposal comes after another more recent one was processed, it will be rejected. Note: this option is only available for asynchronous actions.
+- `ignoreOutdatedProposals` when true, the model's will reject all action proposals that out of order. In the event that a proposal comes after another more recent one was processed, it will be rejected. Note: this option is only available for asynchronous actions.
+- `debounce` when providing a value greater than 0, all intents of the corresponding component will be debounced by that amount in ms. Note: this option is only available for asynchronous actions.
 
 ### Time Travel
 SAM's implementation is capable of time traveling (return to a prior state of the model)
@@ -188,7 +189,7 @@ inc()
 ```
 
 ### Asynchronous actions
-SAM supports and welcomes the use of asynchronous actions.
+SAM supports and welcomes the use of asynchronous actions. It can also operate in a mode where it ignores `outdated proposals` (proposals that come out of order, when compared to the intent's invocation). This is useful to implement the "cancellations" of long running asynchronous requests. A cancel is equivalent to a synchronous action invoked to simply advance the step counter and ignore the initial request's proposal when it comes.
 
 ```javascript
 const { intents } = SAM({
@@ -200,23 +201,34 @@ const { intents } = SAM({
         actions: [
             () => new Promise(r => setTimeout(r, 1000)).then(() => ({ test: true }))
             () => ({ incBy: 1 })
+            () => setTimeout(() => ({ incBy: 1 }), 500)
         ],
         acceptors: [
-        model => ({ test }) => {
-            if (test) {
-                model.status = 'testing'
+          model => ({ test }) => {
+              if (test) {
+                  model.status = 'testing'
+              }
+          },
+          model => ({ incBy }) => {
+            if (incBy) {
+                model.counter += incBy
             }
+          }
+        ],
+        options: {
+          ignoreOutdatedProposals: true
         }
-        ]
     },
     render: (state) => {
         console.log(state.status)
+        console.log(state.counter)
     }
 })
 
-const [test, inc] = intents
-
-test()  // -> testing
+const [test, inc, incLater] = intents
+incLater()  // this action is ignored, proposal is outdated
+inc()       // -> 11, this action cancels the effects of the previous action
+test()      // -> testing, 11
 ```
 
 ### Components with Local State
@@ -295,6 +307,41 @@ if (hasNext()) {
 }
 last()      // --> 3
 ```
+
+### Debounce
+
+```javascript
+  const { intents } = SAMDebouceTest({
+    initialState: {
+      counter: 0
+    },
+
+    component: {
+      actions: [
+        () => ({ incBy: 1, debounceTest: true })
+      ],
+      acceptors: [
+        model => (proposal) => {
+          model.counter += proposal.incBy || 1
+        }
+      ],
+      // Debounce for 100ms
+      options: { debounce: 100 }
+    },
+
+    render: state => console.log(state.counter) // -> 1
+  })
+
+  const [inc] = intents
+
+  // Simulate a series of events trying 
+  // to increment the counter
+  setTimeout(inc, 0)
+  setTimeout(inc, 10)
+  setTimeout(inc, 20)
+  setTimeout(inc, 30)
+```
+
 
 ### Model Checker
 
@@ -452,7 +499,10 @@ checker({
 // empty(0)                      ==> [0,4] (goal: 4)
 ```
 
-## Notes
+## Change Log
+
+1.3.6 adds a debounce mode
+1.3.5 adds a new component option to skip processing outdated proposals
 
 ## Copyright and license
 Code and documentation copyright 2019 Jean-Jacques Dubray. Code released under the ISC license. Docs released under Creative Commons.

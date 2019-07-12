@@ -6,7 +6,7 @@ const {
   SAM, first, api, createInstance
 } = require('../dist/SAM')
 
-const SAMtest = createInstance()
+const SAMtest = createInstance({ instanceName: 'SAMTest' })
 
 const {
   hasNext, addInitialState, addComponent, setRender, travel, addTimeTraveler
@@ -181,6 +181,43 @@ describe('SAM tests', () => {
       incLater()
       inc()
       setTimeout(done, 1500)
+    })
+
+    it('should debounce', async (done) => {
+      const SAMDebouceTest = createInstance({ instanceName: 'debouncer' })
+
+      expect(SAMDebouceTest).to.not.equal(SAM)
+
+      const { intents } = SAMDebouceTest({
+        initialState: {
+          counter: 0
+        },
+
+        component: {
+          actions: [
+            () => ({ incBy: 1, debounceTest: true })
+          ],
+          acceptors: [
+            model => (proposal) => {
+              model.counter += proposal.incBy || 1
+            }
+          ],
+          options: { debounce: 100 }
+        },
+
+        render: state => expect(state.counter).to.be.lessThan(3)
+      })
+
+      const [inc] = intents
+
+      setTimeout(inc, 0)
+      setTimeout(inc, 10)
+      setTimeout(inc, 20)
+      setTimeout(inc, 30)
+
+      setTimeout(inc, 5000)
+
+      done()
     })
   })
 

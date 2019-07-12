@@ -241,8 +241,8 @@
 
     // add one component at a time, returns array of intents from actions
     const addComponent = (component = {}) => {
-      const { ignoreOutdatedProposals = false } = component.options || {};
-
+      const { ignoreOutdatedProposals = false, debounce = 0 } = component.options || {};
+      
       // Add component's private state
       if (E(component.name)) {
         model.__components[component.name] = Object.assign(O(component.localState), { parent: model });
@@ -251,13 +251,32 @@
 
       // Decorate actions to present proposal to the model
       if (hasAsyncActions) {
-        intents = A(component.actions).map(action => async (...args) => {
-          const startTime = new Date().getTime();
-          const proposal = await action(...args);
-          if (ignoreOutdatedProposals) {
-            proposal.__startTime = startTime;
-          }
-          present(proposal);
+        intents = A(component.actions).map((action) => {
+          let needsDebounce = false;
+          const debounceDelay = debounce;
+          
+          const intent = async (...args) => {
+            const startTime = new Date().getTime();
+
+            if (debounceDelay > 0 && needsDebounce) {
+              needsDebounce = !O(args[0]).__resetDebounce;
+              return
+            }
+
+            const proposal = await action(...args);
+
+            if (ignoreOutdatedProposals) {
+              proposal.__startTime = startTime;
+            }
+
+            present(proposal);
+
+            if (debounceDelay > 0) {
+              needsDebounce = true;
+              setTimeout(() => intent({ __resetDebounce: true }), debounceDelay);
+            }
+          };
+          return intent
         });
       } else {
         intents = A(component.actions).map(action => (...args) => {
