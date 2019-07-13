@@ -21,7 +21,6 @@ let checkerIntents = []
 
 describe('SAM examples: dieharder', () => {
   it('should check the model and find a solution', () => {
-
     addInitialState({
       n: 2,
       jugs: [0, 0],
@@ -139,7 +138,7 @@ describe('SAM examples: dieharder', () => {
     },
     (err) => {
       // console.log('The model checker detected a safety condition: ', err)
-  })
+    })
 
     expect(results.length).to.equal(2)
   }).timeout(60000)

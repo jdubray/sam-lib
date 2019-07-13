@@ -123,7 +123,7 @@
     }
   }
 
-  class ModelClass {
+  class Model {
     constructor(name) {
       this.__components = {};
       this.__behavior = [];
@@ -195,6 +195,22 @@
     doNotRender() {
       this.__continue = true;
     }
+
+    setLogger(logger) {
+      this.__logger = logger;
+    }
+
+    log({
+      trace, info, warning, error, fatal
+    }) {
+      if (this.logger) {
+        oneOf(trace, this.logger.trace(trace))
+          .oneOf(info, this.logger.info(info))
+          .oneOf(warning, this.logger.waring(warning))
+          .oneOf(error, this.logger.error(warning))
+          .oneOf(fatal, this.logger.fatal(warning));
+      }
+    }
   }
 
   // ISC License (ISC)
@@ -229,10 +245,11 @@
     const { hasAsyncActions = true, instanceName = 'global' } = options;
 
     // SAM's internal model
-    let intents;
     let history;
-    const model = new ModelClass(instanceName);
+    const model = new Model(instanceName);
+
     const mount = (arr = [], elements = [], operand = model) => elements.map(el => arr.push(el(operand)));
+    let intents;
     const acceptors = [
       ({ __error }) => {
         if (__error) {
@@ -246,7 +263,6 @@
       }
     ];
     const naps = [];
-    let logger;
 
     // ancillary
     let renderView = () => null;
@@ -280,13 +296,17 @@
       }
     };
 
-    const present = (proposal, privateState) => {
+    const checkForOutOfOrder = (proposal) => {
       if (proposal.__startTime) {
         if (proposal.__startTime <= model.__lastProposalTimestamp) {
           return
         }
         proposal.__startTime = model.__lastProposalTimestamp;
       }
+    };
+
+    const present = (proposal, privateState) => {
+      checkForOutOfOrder(proposal);
       // accept proposal
       acceptors.forEach(accept(proposal));
 
@@ -309,7 +329,7 @@
     const rollback = (conditions = []) => conditions.map(condition => model => () => {
       const isNotSafe = condition.expression(model);
       if (isNotSafe) {
-        logger && logger.error({ name: condition.name, model });
+        model.log({ error: { name: condition.name, model } });
         // rollback if history is present
         if (history) {
           model.update(history.last());
@@ -320,7 +340,13 @@
       return false
     });
 
-    const isAllowed = action => model.allowedActions().length === 0 || model.allowedActions().map(a => a === action).reduce(or, false);
+    const isAllowed = action => model.allowedActions().length === 0
+                             || model.allowedActions().map(a => a === action).reduce(or, false);
+    const acceptLocalState = (component) => {
+      if (E(component.name)) {
+        model.setComponentState(component);
+      }
+    };
 
     // add one component at a time, returns array of intents from actions
     const addComponent = (component = {}) => {
@@ -334,9 +360,7 @@
       const debounceDelay = debounce;
 
       // Add component's private state
-      if (E(component.name)) {
-        model.setComponentState(component);
-      }
+      acceptLocalState(component);
 
       // Decorate actions to present proposal to the model
       if (hasAsyncActions) {
@@ -372,8 +396,8 @@
               }
 
               try {
-                retryCount = 0;
                 present(proposal);
+                retryCount = 0;
               } catch (err) {
                 // uncaught exception in an acceptor
                 present({ __error: err });
@@ -411,7 +435,7 @@
     };
 
     const setLogger = (l) => {
-      logger = l;
+      model.setLogger(l);
     };
 
     const setHistory = (h) => {
@@ -497,15 +521,21 @@
     // Core SAM API
     addInitialState: initialState => SAM$1({ initialState }),
     addComponent: component => SAM$1({ component }),
-    setRender: render => SAM$1({ render }),
+    setRender: (render) => {
+      if (Array.isArray(render)) {
+        const [display, representation] = render;
+        render = state => display(representation(state));
+      }
+      SAM$1({ render });
+    },
     getIntents: actions => SAM$1({ component: { actions } }),
     addAcceptors: (acceptors, privateModel) => SAM$1({ component: { acceptors, privateModel } }),
     addReactors: (reactors, privateModel) => SAM$1({ component: { reactors, privateModel } }),
     addNAPs: (naps, privateModel) => SAM$1({ component: { naps, privateModel } }),
     addSafetyConditions: (safety, privateModel) => SAM$1({ component: { safety, privateModel } }),
     hasError: () => SAM$1({}).hasError,
-    allow: actions => SAM$1({ allowed: { actions }}),
-    clearAllowedActions: () => SAM$1({ allowed: { clear: true }}),
+    allow: actions => SAM$1({ allowed: { actions } }),
+    clearAllowedActions: () => SAM$1({ allowed: { clear: true } }),
     allowedActions: () => SAM$1({ allowed: {} }),
 
     // Time Travel

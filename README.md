@@ -527,6 +527,7 @@ checker({
 
 ## Change Log
 
+1.3.11 Minor refactoring
 1.3.10 Adds the ability to skip rendering if necessary
  1.3.9 Adds allowed actions
  1.3.8 Refactor part of the code
