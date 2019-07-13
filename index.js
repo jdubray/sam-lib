@@ -16,7 +16,7 @@ import createInstance from './lib/sam-instance'
 import SAM from './lib/SAM'
 import api from './lib/sam-actions'
 import {
-  O, A, N, NZ, S, F, E, on, oneOf, or, and, match, step, first
+  O, A, N, NZ, S, F, E, on, oneOf, or, and, match, step, first, doNotRender
 } from './lib/sam-utils'
 import { checker } from './lib/sam-checker'
 
@@ -43,6 +43,7 @@ export default {
 
   // Utils
   step,
+  doNotRender,
   first,
   match,
   on,

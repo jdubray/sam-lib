@@ -4,7 +4,7 @@ Traditional programming models (OOP, FP, RP, FRP...) offer few temporal logic co
 
 SAM is generally implemented as a singleton and a single state tree, but that's not a requirement. The library supports a simple component model to modularize the application logic. Components implement any combination of actions, acceptors and reactors and can either operate of a local state or the instance state tree. Actions are converted to intents by the SAM pattern. Intents are invoked by the client/consumer of the SAM instance (which could be another SAM instance). SAM supports asynchronous actions. Intents have magic powers such as automatic retries, ordering or debouncing.
 
-SAM's structure is so precise that the library comes with a [model checker](#model-checker) that is capable of checking the correctness of your code by exploring all possible combinations of intents and values and validate that liveness conditions will be reached and that on the other hand no safety condition will be triggered.
+SAM's structure is so precise that the library comes with a [model checker](#model-checker) that is capable of checking the correctness of your code by exploring all possible combinations of intents and values and validate that liveness conditions will be reached and that on the other hand no [safety condition](#safety-conditions) will be triggered.
 
 The `sam-pattern` library is implemented following SAM's own principles. 
 
@@ -88,15 +88,19 @@ inc()
 - `api`               : `api(samInstance)` will return the actions that control `samInstance`. When no instance is provided, it returns the global instance actions.
 
 ### API to the Global SAM instance
-- `addInitialState`   : adds to the model's initial state (or simply state when called at a later time) 
-- `addComponent`      : adds one of many components (Actions, Acceptors, Reactors). Returns intents from actions
-- `addAcceptors`      : adds a list of acceptors to the SAM instance (acceptors are executed in the order in which they are defined)
-- `addReactors`       : adds a list of reactors to the SAM instance
-- `addNAPs`           : adds a list of next-action-predicates to the SAM instance. When a predicate returns `true`, the rendering is suspended until the next-action is completed
-- `getIntents`        : returns a list of intents, given a list of actions. Intents wrap actions with the call to the present method
-- `setRender`         : sets the render method
+- `addInitialState`    : adds to the model's initial state (or simply state when called at a later time) 
+- `addComponent`       : adds one of many components (Actions, Acceptors, Reactors). Returns intents from actions
+- `addAcceptors`       : adds a list of acceptors to the SAM instance (acceptors are executed in the order in which they are defined)
+- `addReactors`        : adds a list of reactors to the SAM instance
+- `addNAPs`            : adds a list of next-action-predicates to the SAM instance. When a predicate returns `true`, the rendering is suspended until the next-action is completed
+- `getIntents`         : returns a list of intents, given a list of actions. Intents wrap actions with the call to the present method
+- `setRender`          : sets the render method
+- `allowedActions`     : gets the allowed actions for the next step. Actions fail silently when not allowed.
+- `allow`              : allows an array of actions
+- `clearAllowedActions`: clears all allowed actions
 
-- `step`              : a simple action that executes a SAM step without changing the application state
+- `step`               : a simple action that executes a SAM step without changing the application state
+- `doNotRender`        : a nap that allows to you to prevent rendering the current state (for one step)
 
 A component specification includes options:
 - `ignoreOutdatedProposals` when true, the model's will reject all action proposals that out of order. In the event that a proposal comes after another more recent one was processed, it will be rejected. Note: this option is only available for asynchronous actions.
@@ -523,9 +527,12 @@ checker({
 
 ## Change Log
 
-1.3.7 adds exception handling
-1.3.6 adds a debounce mode
-1.3.5 adds a new component option to skip processing outdated proposals
+1.3.10 Adds the ability to skip rendering if necessary
+ 1.3.9 Adds allowed actions
+ 1.3.8 Refactor part of the code
+ 1.3.7 adds exception handling
+ 1.3.6 adds a debounce mode
+ 1.3.5 adds a new component option to skip processing outdated proposals
 
 ## Copyright and license
 Code and documentation copyright 2019 Jean-Jacques Dubray. Code released under the ISC license. Docs released under Creative Commons.

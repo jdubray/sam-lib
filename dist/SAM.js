@@ -33,6 +33,7 @@
   const and = (acc, current) => acc && current;
   const match = (conditions, values) => first(conditions.map((condition, index) => (condition ? values[index] : null)).filter(e));
   const step = () => ({});
+  const doNotRender = model => () => model.continue() === true;
   const wrap = (s, w) => m => s(w(m));
 
   const e = value => (Array.isArray(value)
@@ -72,7 +73,7 @@
     delete state.__components;
     const cln = JSON.parse(JSON.stringify(state));
     if (comps) {
-      cln.__components = []; 
+      cln.__components = [];
       if (comps.length > 0) {
         comps.forEach((c) => {
           delete c.parent;
@@ -83,71 +84,118 @@
     return cln
   };
 
-  var timetraveler = (h = [], options = {}) => (function () {
-    let currentIndex = 0;
-    const history = h;
-    const { max } = options;
-
-    return {
-      snap(state, index) {
-        const snapshot = clone(state);
-        if (index) {
-          history[index] = snapshot;
-        } else {
-          history.push(snapshot);
-          if (max && history.length > max) {
-            history.splice(0, 1);
-          }
-        }
-        return state
-      },
-
-      travel(index = 0) {
-        currentIndex = index;
-        return history[index]
-      },
-
-      next() {
-        return history[currentIndex++]
-      },
-
-      hasNext() {
-        return E(history[currentIndex])
-      },
-
-      last() {
-        currentIndex = history.length - 1;
-        return history[currentIndex]
-      }
+  class History {
+    constructor(h = [], options = {}) {
+      this.currentIndex = 0;
+      this.history = h;
+      this.max = options.max;
     }
-  }());
 
-  const ModelClass = function (name) {
-    this.__components = {};
-    this.__behavior = [];
-    this.__name = name;
-    this.__lastProposalTimestamp = 0;
-  };
+    snap(state, index) {
+      const snapshot = clone(state);
+      if (index) {
+        this.history[index] = snapshot;
+      } else {
+        this.history.push(snapshot);
+        if (this.max && this.history.length > this.max) {
+          this.history.splice(0, 1);
+        }
+      }
+      return state
+    }
 
-  ModelClass.prototype.localState = function (name) {
-    return E(name) ? this.__components[name] : {}
-  };
+    travel(index = 0) {
+      this.currentIndex = index;
+      return this.history[index]
+    }
 
-  ModelClass.prototype.hasError = function () {
-    return E(this.__error)
-  };
+    next() {
+      return this.history[this.currentIndex++]
+    }
 
-  ModelClass.prototype.error = function () {
-    return this.__error || undefined
-  };
+    hasNext() {
+      return E(this.history[this.currentIndex])
+    }
 
-  ModelClass.prototype.errorMessage = function () {
-    return O(this.__error).message
-  };
+    last() {
+      this.currentIndex = this.history.length - 1;
+      return this.history[this.currentIndex]
+    }
+  }
 
-  ModelClass.prototype.clearError = function () {
-    return delete this.__error
-  };
+  class ModelClass {
+    constructor(name) {
+      this.__components = {};
+      this.__behavior = [];
+      this.__name = name;
+      this.__lastProposalTimestamp = 0;
+      this.__allowedActions = [];
+    }
+
+    localState(name) {
+      return E(name) ? this.__components[name] : {}
+    }
+
+    hasError() {
+      return E(this.__error)
+    }
+
+    error() {
+      return this.__error || undefined
+    }
+
+    errorMessage() {
+      return O(this.__error).message
+    }
+
+    clearError() {
+      return delete this.__error
+    }
+
+    allowedActions() {
+      return this.__allowedActions
+    }
+
+    clearAllowedActions() {
+      this.__allowedActions = [];
+    }
+
+    addAllowedActions(a) {
+      this.__allowedActions.push(a);
+    }
+
+    resetBehavior() {
+      this.__behavior = [];
+    }
+
+    update(snapshot = {}) {
+      Object.assign(this, snapshot);
+    }
+
+    setComponentState(component) {
+      this.__components[component.name] = Object.assign(O(component.localState), { parent: this });
+      component.localState = component.localState || this.__components[component.name];
+    }
+
+    hasNext(val) {
+      if (E(val)) {
+        this.__hasNext = val;
+      }
+      return this.__hasNext
+    }
+
+    continue() {
+      return this.__continue === true
+    }
+
+    renderNextTime() {
+      delete this.__continue;
+    }
+
+    doNotRender() {
+      this.__continue = true;
+    }
+  }
 
   // ISC License (ISC)
 
@@ -156,6 +204,26 @@
   // - SAM's internal acceptors
   // - SAM's present function
 
+  // eslint-disable-next-line arrow-body-style
+  const stringify = (s, pretty) => {
+    return (pretty ? JSON.stringify(s, null, 4) : JSON.stringify(s))
+  };
+
+  const display = (json = {}, pretty = false) => {
+    const keys = Object.keys(json);
+    return `${keys.map((key) => {
+    if (typeof key !== 'string') {
+      return ''
+    }
+    return key.indexOf('__') === 0 ? '' : stringify(json[key], pretty)
+  }).filter(val => val !== '').join(', ')
+  }`
+  };
+
+  const react = r => r();
+  const accept = proposal => a => a(proposal);
+
+
   function createInstance (options = {}) {
     const { max } = O(options.timetravel);
     const { hasAsyncActions = true, instanceName = 'global' } = options;
@@ -163,7 +231,7 @@
     // SAM's internal model
     let intents;
     let history;
-    let model = new ModelClass(instanceName);
+    const model = new ModelClass(instanceName);
     const mount = (arr = [], elements = [], operand = model) => elements.map(el => arr.push(el(operand)));
     const acceptors = [
       ({ __error }) => {
@@ -174,7 +242,7 @@
     ];
     const reactors = [
       () => {
-        model.__hasNext = history ? history.hasNext() : false;
+        model.hasNext(history ? history.hasNext() : false);
       }
     ];
     const naps = [];
@@ -184,14 +252,6 @@
     let renderView = () => null;
     let _render = () => null;
     let storeRenderView = _render;
-    const react = r => r();
-    const accept = proposal => a => a(proposal);
-    // eslint-disable-next-line arrow-body-style
-    const stringify = (s, pretty) => {
-      return (pretty ? JSON.stringify(s, null, 4) : JSON.stringify(s))
-    };
-
-    // Model
 
     // State Representation
     const state = () => {
@@ -203,22 +263,11 @@
         if (!naps.map(react).reduce(or, false)) {
           renderView(model);
         }
+        model.renderNextTime();
       } catch (err) {
         setTimeout(present({ __error: err }), 0);
       }
     };
-
-    const display = (json = {}, pretty = false) => {
-      const keys = Object.keys(json);
-      return `${keys.map((key) => {
-      if (typeof key !== 'string') {
-        return ''
-      }
-      return key.indexOf('__') === 0 ? '' : stringify(json[key], pretty)
-    }).filter(val => val !== '').join(', ')
-    }`
-    };
-
 
     const storeBehavior = (proposal) => {
       if (E(proposal.__name)) {
@@ -249,11 +298,11 @@
 
     // SAM's internal acceptors
     const addInitialState = (initialState = {}) => {
-      Object.assign(model, initialState);
+      model.update(initialState);
       if (history) {
         history.snap(model, 0);
       }
-      model.__behavior = [];
+      model.resetBehavior();
     };
 
     // eslint-disable-next-line no-shadow
@@ -263,7 +312,7 @@
         logger && logger.error({ name: condition.name, model });
         // rollback if history is present
         if (history) {
-          model = history.last();
+          model.update(history.last());
           renderView(model);
         }
         return true
@@ -271,73 +320,81 @@
       return false
     });
 
+    const isAllowed = action => model.allowedActions().length === 0 || model.allowedActions().map(a => a === action).reduce(or, false);
+
     // add one component at a time, returns array of intents from actions
     const addComponent = (component = {}) => {
       const { ignoreOutdatedProposals = false, debounce = 0, retry } = component.options || {};
 
       if (retry) {
-        retry.max = retry.max || 1;
-        retry.delay = retry.delay || 0;
+        retry.max = NZ(retry.max);
+        retry.delay = N(retry.delay);
       }
+
+      const debounceDelay = debounce;
 
       // Add component's private state
       if (E(component.name)) {
-        model.__components[component.name] = Object.assign(O(component.localState), { parent: model });
-        component.localState = component.localState || model.__components[component.name];
+        model.setComponentState(component);
       }
 
       // Decorate actions to present proposal to the model
       if (hasAsyncActions) {
         intents = A(component.actions).map((action) => {
           let needsDebounce = false;
-          const debounceDelay = debounce;
           let retryCount = 0;
 
           const intent = async (...args) => {
             const startTime = new Date().getTime();
 
-            if (debounceDelay > 0 && needsDebounce) {
-              needsDebounce = !O(args[0]).__resetDebounce;
-              return
-            }
-
-            let proposal = {};
-            try {
-              proposal = await action(...args);
-            } catch (err) {
-              if (retry) {
-                retryCount += 1;
-                if (retryCount < retry.max) {
-                  setTimeout(() => intent(...args), retry.delay);
-                }
+            if (isAllowed(action)) {
+              if (debounceDelay > 0 && needsDebounce) {
+                needsDebounce = !O(args[0]).__resetDebounce;
                 return
               }
-              proposal.__error = err;
-            }
 
-            if (ignoreOutdatedProposals) {
-              proposal.__startTime = startTime;
-            }
+              let proposal = {};
+              try {
+                proposal = await action(...args);
+              } catch (err) {
+                if (retry) {
+                  retryCount += 1;
+                  if (retryCount < retry.max) {
+                    setTimeout(() => intent(...args), retry.delay);
+                  }
+                  return
+                }
+                proposal.__error = err;
+              }
 
-            try {
-              retryCount = 0;
-              present(proposal);
-            } catch (err) {
-              // uncaught exception in an acceptor
-              present({ __error: err });
-            }
+              if (ignoreOutdatedProposals) {
+                proposal.__startTime = startTime;
+              }
 
-            if (debounceDelay > 0) {
-              needsDebounce = true;
-              setTimeout(() => intent({ __resetDebounce: true }), debounceDelay);
+              try {
+                retryCount = 0;
+                present(proposal);
+              } catch (err) {
+                // uncaught exception in an acceptor
+                present({ __error: err });
+              }
+
+              if (debounceDelay > 0) {
+                needsDebounce = true;
+                setTimeout(() => intent({ __resetDebounce: true }), debounceDelay);
+              }
             }
           };
           return intent
         });
       } else {
         intents = A(component.actions).map(action => (...args) => {
-          const proposal = action(...args);
-          present(proposal);
+          try {
+            const proposal = action(...args);
+            present(proposal);
+          } catch (err) {
+            present({ __error: err });
+          }
         });
       }
 
@@ -349,7 +406,7 @@
     };
 
     const setRender = (render) => {
-      renderView = history ? wrap(render, history.snap) : render;
+      renderView = history ? wrap(render, s => (history ? history.snap(s) : s)) : render;
       _render = render;
     };
 
@@ -358,27 +415,28 @@
     };
 
     const setHistory = (h) => {
-      history = timetraveler(h, { max });
-      model.__hasNext = history.hasNext();
-      model.__behavior = [];
-      renderView = wrap(_render, history.snap);
+      history = new History(h, { max });
+      model.hasNext(history.hasNext());
+      model.resetBehavior();
+      renderView = wrap(_render, s => (history ? history.snap(s) : s));
     };
 
     const timetravel = (travel = {}) => {
+      let travelTo = {};
       if (E(history)) {
         if (travel.reset) {
           travel.index = 0;
           model.__behavior = [];
         }
         if (travel.next) {
-          model = history.next();
+          travelTo = history.next();
         } else if (travel.endOfTime) {
-          model = history.last();
+          travelTo = history.last();
         } else {
-          model = history.travel(travel.index);
+          travelTo = history.travel(travel.index);
         }
       }
-      renderView(model);
+      renderView(Object.assign(model, travelTo));
     };
 
     const setCheck = ({ begin = {}, end }) => {
@@ -393,10 +451,19 @@
       }
     };
 
+    const allowedActions = ({ actions = [], clear = false }) => {
+      if (actions.length > 0) {
+        model.addAllowedActions(actions);
+      } else if (clear) {
+        model.clearAllowedActions();
+      }
+      return model.allowedActions()
+    };
+
     // SAM's internal present function
     return ({
       // eslint-disable-next-line no-shadow
-      initialState, component, render, history, travel, logger, check
+      initialState, component, render, history, travel, logger, check, allowed
     }) => {
       intents = [];
 
@@ -406,10 +473,14 @@
         .on(render, setRender)
         .on(travel, timetravel)
         .on(logger, setLogger)
-        .on(check, setCheck);
+        .on(check, setCheck)
+        .on(allowed, allowedActions);
 
       return {
-        hasNext: model.__hasNext,
+        hasNext: model.hasNext(),
+        hasError: model.hasError(),
+        errorMessage: model.errorMessage(),
+        error: model.error(),
         intents
       }
     }
@@ -432,6 +503,10 @@
     addReactors: (reactors, privateModel) => SAM$1({ component: { reactors, privateModel } }),
     addNAPs: (naps, privateModel) => SAM$1({ component: { naps, privateModel } }),
     addSafetyConditions: (safety, privateModel) => SAM$1({ component: { safety, privateModel } }),
+    hasError: () => SAM$1({}).hasError,
+    allow: actions => SAM$1({ allowed: { actions }}),
+    clearAllowedActions: () => SAM$1({ allowed: { clear: true }}),
+    allowedActions: () => SAM$1({ allowed: {} }),
 
     // Time Travel
     addTimeTraveler: (history = []) => SAM$1({ history }),
@@ -601,6 +676,7 @@
 
     // Utils
     step,
+    doNotRender,
     first,
     match,
     on,

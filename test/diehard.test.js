@@ -139,7 +139,7 @@ describe('SAM examples: dieharder', () => {
     },
     (err) => {
       // console.log('The model checker detected a safety condition: ', err)
-    })
+  })
 
     expect(results.length).to.equal(2)
   }).timeout(60000)

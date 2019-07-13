@@ -3,13 +3,13 @@
 const { expect } = require('chai')
 
 const {
-  SAM, first, api, createInstance
+  SAM, first, api, createInstance, doNotRender, utils: { E }
 } = require('../dist/SAM')
 
 const SAMtest = createInstance({ instanceName: 'SAMTest' })
 
 const {
-  hasNext, addInitialState, addComponent, setRender, travel, addTimeTraveler
+  hasNext, setRender, travel
 } = api(SAMtest)
 
 let tick = () => ({})
@@ -307,6 +307,89 @@ describe('SAM tests', () => {
       // the SAM instance will retry 3 times
       inc()
     })
+
+    it('should accept a limited set of actions', () => {
+      const SAMAllowedActionTest = createInstance({ instanceName: 'allowed' })
+
+      expect(SAMAllowedActionTest).to.not.equal(SAM)
+
+      const { intents } = SAMAllowedActionTest({
+      
+        initialState: {
+          counter: 0
+        },
+
+        component: {
+          actions: [
+            () => ({ incBy1: 1 }),
+            () => ({ incBy2: 1 })
+          ],
+          acceptors: [
+            model => ({ incBy1, incBy2 }) => {
+              if (E(incBy1) || E(incBy2)) {
+                model.counter += (incBy1 || 0) + (incBy2 || 0)
+              }
+            }
+          ]
+        },
+
+        render: state => expect(state.counter).to.be.lessThan(4)
+      })
+      const [incBy1, incBy2] = intents
+      SAMAllowedActionTest({ allow: { actions: [incBy2] } })
+      incBy1()
+      incBy2()
+      incBy1()
+
+      setRender(state => expect(state.counter).to.be.equal(1))
+    })
+
+    it('should accept skip rendering', () => {
+      const SAMSkipRenderingTest = createInstance({ instanceName: 'allowed', hasAsyncActions: false })
+
+      expect(SAMSkipRenderingTest).to.not.equal(SAM)
+
+      let renderCounter = 0
+
+      const { intents } = SAMSkipRenderingTest({
+      
+        initialState: {
+          counter: 0
+        },
+
+        component: {
+          actions: [
+            () => ({ incBy1: 1 }),
+            () => ({ incBy2: 1 })
+          ],
+          acceptors: [
+            model => ({ incBy1, incBy2 }) => {
+              if (E(incBy1) || E(incBy2)) {
+                model.counter += (incBy1 || 0) + (incBy2 || 0)
+              }
+
+              // Do not render for that step
+              if (E(incBy2)) {
+                model.doNotRender()
+              }
+            }
+          ],
+          naps: [
+            doNotRender
+          ]
+        },
+
+        render: () => {
+          renderCounter++
+        }
+      })
+      const [incBy1, incBy2] = intents
+      incBy1()
+      incBy2()
+      incBy1()
+
+      expect(renderCounter).to.be.equal(2)
+    })
   })
 
   describe('timetraveler', () => {
@@ -342,25 +425,32 @@ describe('SAM tests', () => {
     })
 
     it('should travel back in time', () => {
-      addTimeTraveler([])
+      const SAMTravelerTest = createInstance({ instanceName: 'traveler' })
 
-      addInitialState({
-        counter: 0
+      expect(SAMTravelerTest).to.not.equal(SAM)
+
+      const { intents } = SAMTravelerTest({
+        history: [],
+
+        initialState: {
+          counter: 0
+        },
+
+        component: {
+          actions: [
+            () => ({ incByX: 1 })
+          ],
+          acceptors: [
+            model => ({ incByX }) => {
+              if (E(incByX)) {
+                model.counter += incByX || 1
+              }
+            }
+          ]
+        },
+
+        render: state => expect(state.counter).to.be.lessThan(4)
       })
-
-      const { intents } = addComponent({
-        actions: [
-          () => ({ incBy: 1 })
-        ],
-        acceptors: [
-          model => (proposal) => {
-            model.counter += proposal.incBy || 1
-          }
-        ]
-      })
-
-      setRender(state => expect(state.counter).to.be.lessThan(4))
-
       const [inc] = intents
 
       inc()
@@ -369,7 +459,7 @@ describe('SAM tests', () => {
 
       setRender(state => expect(state.counter).to.be.equal(0))
 
-      travel(0)
+      SAMTravelerTest({ travel: { index: 0 } })
     })
   })
 })
