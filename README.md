@@ -1,4 +1,4 @@
-# sam-pattern - a Temporal Programming library
+# A Temporal Programming library
 
 Traditional programming models (OOP, FP, RP, FRP...) offer few temporal logic constructs, if any. This library is an implementation of the [SAM pattern](http://sam.js.org), a software engineering pattern based on the semantics of [TLA+](https://en.wikipedia.org/wiki/TLA%2B) (the Temporal Logic of Actions). SAM (State-Action-Model) helps manage and reason about the application state from a temporal perspective. SAM's founding principle is that State Mutation must be a first class citizen of the programming model and as such mutations must occur in a well defined synchronized step. SAM defines a step as: Action -> Acceptor(s) -> Reactor(s) -> Next-Action and|or render. 
 
@@ -569,6 +569,7 @@ checker({
 
 ## Change Log
 
+1.4.1  Changes setRender to accept only one function (or two)
 1.4.0  Adds an option to run the model in synchronized mode
 1.3.11 Minor refactoring
 1.3.10 Adds the ability to skip rendering if necessary

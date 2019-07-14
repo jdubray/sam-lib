@@ -571,7 +571,7 @@
     setRender: (render) => {
       if (Array.isArray(render)) {
         const [display, representation] = render;
-        render = state => display(representation(state));
+        render = state => display(typeof representation === 'function' ? representation(state) : state);
       }
       SAM$1({ render });
     },

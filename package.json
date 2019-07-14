@@ -1,6 +1,6 @@
 {
   "name": "sam-pattern",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "SAM Pattern library",
   "main": "./dist/sam.js",
   "scripts": {
