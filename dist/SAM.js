@@ -98,7 +98,7 @@
       } else {
         this.history.push(snapshot);
         if (this.max && this.history.length > this.max) {
-          this.history.splice(0, 1);
+          this.history.shift();
         }
       }
       return state
@@ -237,17 +237,17 @@
   };
 
   const react = r => r();
-  const accept = proposal => a => a(proposal);
+  const accept = proposal => async a => a(proposal);
 
 
   function createInstance (options = {}) {
     const { max } = O(options.timetravel);
-    const { hasAsyncActions = true, instanceName = 'global' } = options;
+    const { hasAsyncActions = true, instanceName = 'global', synchronize = false } = options;
+    const { synchronizeInterval = 5 } = O(synchronize);
 
     // SAM's internal model
     let history;
     const model = new Model(instanceName);
-
     const mount = (arr = [], elements = [], operand = model) => elements.map(el => arr.push(el(operand)));
     let intents;
     const acceptors = [
@@ -281,7 +281,7 @@
         }
         model.renderNextTime();
       } catch (err) {
-        setTimeout(present({ __error: err }), 0);
+        setTimeout(() => present({ __error: err }), 0);
       }
     };
 
@@ -299,22 +299,68 @@
     const checkForOutOfOrder = (proposal) => {
       if (proposal.__startTime) {
         if (proposal.__startTime <= model.__lastProposalTimestamp) {
-          return
+          return false
         }
         proposal.__startTime = model.__lastProposalTimestamp;
       }
+      return true
     };
 
-    const present = (proposal, privateState) => {
-      checkForOutOfOrder(proposal);
-      // accept proposal
-      acceptors.forEach(accept(proposal));
+    const queue = {
+      _queue: [],
+      _rendering: false,
+      add(args) {
+        this._queue.push(args);
+      },
 
-      storeBehavior(proposal);
+      synchronize(present) {
+        const self = this;
+        this._interval = setInterval(async () => {
+          if (!self._rendering && self._queue.length > 0) {
+            self._rendering = true;
+            const [proposal] = self._queue.slice(0, 1);
+            self._queue.shift();
+            proposal.__rendering = self._rendering;
+            await present(...proposal);
+            self._rendering = false;
+          }
+        }, synchronizeInterval);
 
-      // Continue to state representation
-      state();
+        return (...args) => queue.add(args)
+      },
+
+      clear() {
+        clearInterval(this._interval);
+      }
     };
+
+    let present = synchronize ? async (proposal, resolve) => {
+      if (checkForOutOfOrder(proposal)) {
+        // accept proposal
+        await Promise.all(acceptors.map(await accept(proposal)));
+
+        storeBehavior(proposal);
+
+        // Continue to state representation
+        state();
+        resolve && resolve();
+      }
+    } : (proposal, resolve) => {
+      if (checkForOutOfOrder(proposal)) {
+        // accept proposal
+        acceptors.forEach(accept(proposal));
+
+        storeBehavior(proposal);
+
+        // Continue to state representation
+        state();
+        resolve && resolve();
+      }
+    };
+
+    if (synchronize) {
+      present = queue.synchronize(present);
+    }
 
     // SAM's internal acceptors
     const addInitialState = (initialState = {}) => {
@@ -487,7 +533,7 @@
     // SAM's internal present function
     return ({
       // eslint-disable-next-line no-shadow
-      initialState, component, render, history, travel, logger, check, allowed
+      initialState, component, render, history, travel, logger, check, allowed, clearInterval
     }) => {
       intents = [];
 
@@ -498,7 +544,8 @@
         .on(travel, timetravel)
         .on(logger, setLogger)
         .on(check, setCheck)
-        .on(allowed, allowedActions);
+        .on(allowed, allowedActions)
+        .on(clearInterval, () => queue.clear());
 
       return {
         hasNext: model.hasNext(),

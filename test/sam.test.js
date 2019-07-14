@@ -9,7 +9,7 @@ const {
 const SAMtest = createInstance({ instanceName: 'SAMTest' })
 
 const {
-  hasNext, setRender, travel
+  hasNext, setRender
 } = api(SAMtest)
 
 let tick = () => ({})
@@ -314,7 +314,7 @@ describe('SAM tests', () => {
       expect(SAMAllowedActionTest).to.not.equal(SAM)
 
       const { intents } = SAMAllowedActionTest({
-      
+
         initialState: {
           counter: 0
         },
@@ -352,7 +352,7 @@ describe('SAM tests', () => {
       let renderCounter = 0
 
       const { intents } = SAMSkipRenderingTest({
-      
+
         initialState: {
           counter: 0
         },
@@ -390,6 +390,62 @@ describe('SAM tests', () => {
 
       expect(renderCounter).to.be.equal(2)
     })
+
+    it('should run the synchronize the present method', (done) => {
+      let SAMSynchronizeTest = createInstance({ instanceName: 'allowed', synchronize: true })
+
+      expect(SAMSynchronizeTest).to.not.equal(SAM)
+
+      let renderCounter = 0
+      const timestamp = []
+
+      const { intents } = SAMSynchronizeTest({
+
+        initialState: {
+          counter: 0
+        },
+
+        component: {
+          actions: [
+            () => ({ incBy1: 1 }),
+            () => ({ incBy2: 1 })
+          ],
+          acceptors: [
+            model => async ({ incBy1, incBy2 }) => {
+              if (E(incBy1)) {
+                model.counter += (incBy1 || 0) + (incBy2 || 0)
+              }
+
+              // simulates an async acceptor with a slow 100ms reponse time
+              if (E(incBy2)) {
+                await new Promise(r => setTimeout(r, 100))
+                model.counter += incBy2
+              }
+            }
+          ],
+          naps: [
+            doNotRender
+          ]
+        },
+
+        render: () => {
+          renderCounter++
+          timestamp.push(new Date().getTime())
+          if (renderCounter === 4) {
+            expect(timestamp[1] - timestamp[0]).to.be.greaterThan(80)
+            expect(timestamp[2] - timestamp[1]).to.be.lessThan(30)
+            SAMSynchronizeTest({ clearInterval: true })
+            done()
+          }
+        }
+      })
+      const [incBy1, incBy2] = intents
+      incBy1()
+      setTimeout(() => incBy2(), 0)
+      setTimeout(() => incBy1(), 0)
+      setTimeout(() => incBy1(), 0)
+      expect(renderCounter).to.be.equal(0)
+    }).timeout(5000)
   })
 
   describe('timetraveler', () => {

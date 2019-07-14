@@ -1,4 +1,4 @@
-# sam-pattern - a Temporal Programming library
+# 1. sam-pattern - a Temporal Programming library
 
 Traditional programming models (OOP, FP, RP, FRP...) offer few temporal logic constructs, if any. This library is an implementation of the [SAM pattern](http://sam.js.org), a software engineering pattern based on the semantics of [TLA+](https://en.wikipedia.org/wiki/TLA%2B) (the Temporal Logic of Actions). SAM (State-Action-Model) helps manage and reason about the application state from a temporal perspective. SAM's founding principle is that State Mutation must be a first class citizen of the programming model and as such mutations must occur in a well defined synchronized step. SAM defines a step as: Action -> Acceptor(s) -> Reactor(s) -> Next-Action and|or render. 
 
@@ -8,9 +8,12 @@ SAM's structure is so precise that the library comes with a [model checker](#mod
 
 The `sam-pattern` library is implemented following SAM's own principles. 
 
-## installation
+<!-- TOC -->autoauto- [1. sam-pattern - a Temporal Programming library](#1-sam-pattern---a-temporal-programming-library)auto    - [1.1. installation](#11-installation)auto        - [1.1.1. Node.js](#111-nodejs)auto        - [1.1.2. Browsers](#112-browsers)auto        - [1.1.3. Getting started](#113-getting-started)auto        - [1.1.4. Code Samples](#114-code-samples)auto    - [1.2. Library](#12-library)auto        - [1.2.1. Constructors](#121-constructors)auto        - [1.2.2. API to the Global SAM instance](#122-api-to-the-global-sam-instance)auto        - [1.2.3. Time Travel](#123-time-travel)auto        - [1.2.4. Model Checker](#124-model-checker)auto        - [1.2.5. Utils](#125-utils)auto    - [1.3. Exception Handling](#13-exception-handling)auto    - [1.4. Code samples](#14-code-samples)auto        - [1.4.1. Synchronized mutation](#141-synchronized-mutation)auto        - [1.4.2. Safety Conditions](#142-safety-conditions)auto        - [1.4.3. Asynchronous actions](#143-asynchronous-actions)auto        - [1.4.4. Components with Local State](#144-components-with-local-state)auto        - [1.4.5. Time Traveler](#145-time-traveler)auto        - [1.4.6. Debounce](#146-debounce)auto        - [1.4.7. Model Checker](#147-model-checker)auto    - [1.5. Change Log](#15-change-log)auto    - [1.6. Copyright and license](#16-copyright-and-license)autoauto<!-- /TOC -->
 
-### Node.js
+
+## 1.1. installation
+
+### 1.1.1. Node.js
 The library is available on [npm](https://www.npmjs.com/package/sam-pattern). To install it, type:
 
 ```sh
@@ -30,7 +33,7 @@ const child = api(createInstance())
 
 ```
 
-### Browsers
+### 1.1.2. Browsers
 You can also use it within the browser; install via npm and use the sam.js file found within the download. For example:
 
 ```html
@@ -47,7 +50,7 @@ const { addInitialState, addComponent, setRender } = tp
 
 ```
 
-### Getting started
+### 1.1.3. Getting started
 
 SAM requires an initial state, one or more components and a render method that will be called after each step.
 
@@ -75,19 +78,19 @@ const [inc] = intents
 inc() 
 ```
 
-### Code Samples
+### 1.1.4. Code Samples
 [Rocket Launcher](https://codepen.io/sam-pattern/pen/qzYQgd)
 
 [ToDoMVC](https://github.com/jdubray/sam-samples/tree/master/todomvc-app)
 
-## Library
+## 1.2. Library
 
-### Constructors
+### 1.2.1. Constructors
 - `SAM`               : global SAM instance 
 - `createInstance`    : creates a SAM instance
 - `api`               : `api(samInstance)` will return the actions that control `samInstance`. When no instance is provided, it returns the global instance actions.
 
-### API to the Global SAM instance
+### 1.2.2. API to the Global SAM instance
 - `addInitialState`    : adds to the model's initial state (or simply state when called at a later time) 
 - `addComponent`       : adds one of many components (Actions, Acceptors, Reactors). Returns intents from actions
 - `addAcceptors`       : adds a list of acceptors to the SAM instance (acceptors are executed in the order in which they are defined)
@@ -107,7 +110,7 @@ A component specification includes options:
 - `debounce` when providing a value greater than 0, all intents of the corresponding component will be debounced by that amount in ms. Note: this option is only available for asynchronous actions.
 - `retry` { `delay`, `max` } when specified, it will retry invoking an intent in case of an unhandled exception up to `max` times and after `delay` ms.
 
-### Time Travel
+### 1.2.3. Time Travel
 SAM's implementation is capable of time traveling (return to a prior state of the model)
 - `addTimetraveler`   : adds a time traveler instance. The method takes an optional array of snapshots which allows you to initialize the SAM instance's history
 - `travel`            : returns to the nth snapshot of the model's history
@@ -115,7 +118,7 @@ SAM's implementation is capable of time traveling (return to a prior state of th
 - `next`              : returns the next snapshot of the model
 - `last`              : returns the last snapshot of history
 
-### Model Checker
+### 1.2.4. Model Checker
 The library includes a model checker capable of computing the behavior leading to a liveness or safety conditon (see example below). The `checker` method arguments are:
 - `instance`          : The SAM instance used for checking 
 - `intents`           : Model checker intents - `intent`: the SAM intent, `name`: its name, `values`: an array of all possible permutations for the intent arguments } 
@@ -126,13 +129,13 @@ The library includes a model checker capable of computing the behavior leading t
 - `success`           : a callback for every liveness condition detected
 - `err`               : a callback for every safety condition detected
 
-### Utils
+### 1.2.5. Utils
 - `first`             : returns the first element of its argument (array)
 - `match`             : Given an array of booleans and an array object, it returns the first object which corresponding boolean value is true
 - `on`                : a helper function which takes an object `o` and a function `f` as arguments and calls `f(o)` if the object exists. `on` calls can be chained. This function to chain a series of acceptors
 - `oneOf`             : same as `on` but will stop after the first value that is found to exist
 
-## Exception Handling
+## 1.3. Exception Handling
 
 SAM handles all uncaught action, acceptor, reactor and nap exceptions. The application model and state representation expose four methods to check for exceptions:
 - `hasError`  
@@ -151,9 +154,24 @@ render: (state) => {
 }
 ```
 
-## Code samples
+## 1.4. Code samples
 
-### Safety Conditions
+### 1.4.1. Synchronized mutation
+
+In its pure form, the SAM pattern does not support asynchronous acceptors, all model mutations must be synchronous. If you wanted to call a downstream API to create, update or delete some entity that would technically be incorrect. The way to do it would be to use a next-action-predicate (NAP) that will make the call and present the results back to the model.
+
+That can be a little bit of a boiler plate, especially if your UX is expected to be synchronous. Very often users are willing for an API call to complete before they want to do something else.
+
+SAM allows you to synchronize the `present` method and queue all other action proposals in the mean time. There is an option to create a SAM instance that will be synchronized:
+
+```javascript
+let SyncSAM = createInstance({ instanceName: 'sync\'ed', synchronize: true })
+
+// You may at some point need to clear the internal queue used for proposals
+SyncSAM({ clearInterval: true })
+```
+
+### 1.4.2. Safety Conditions
 
 Temporal programming (and TLA+) supports invariants which can be checked after each step as Safety conditions (an invalid state). When a Safety Condition is detected, SAM will roll back the application state to the latest valid snapshot of the model (if history is turned on) and notify the client of the corresponding exception.
 
@@ -214,7 +232,7 @@ const [inc] = intents
 inc()
 ```
 
-### Asynchronous actions
+### 1.4.3. Asynchronous actions
 SAM supports and welcomes the use of asynchronous actions. It can also operate in a mode where it ignores `outdated proposals` (proposals that come out of order, when compared to the intent's invocation). This is useful to implement the "cancellations" of long running asynchronous requests. A cancel is equivalent to a synchronous action invoked to simply advance the step counter and ignore the initial request's proposal when it comes.
 
 ```javascript
@@ -257,7 +275,7 @@ inc()       // -> 11, this action cancels the effects of the previous action
 test()      // -> testing, 11
 ```
 
-### Components with Local State
+### 1.4.4. Components with Local State
 
 A named component operates on their local state (which can be initialized via the `localState` property). The component's acceptors and reactors can access the state tree of the SAM instance via the `parent` property.   
 
@@ -296,7 +314,7 @@ const [tick] = SAM({
 tick()    
 ```
 
-### Time Traveler
+### 1.4.5. Time Traveler
 
 ```javascript
 // Add a time traveler to the global SAM instance 
@@ -334,7 +352,7 @@ if (hasNext()) {
 last()      // --> 3
 ```
 
-### Debounce
+### 1.4.6. Debounce
 
 ```javascript
   const { intents } = SAMDebouceTest({
@@ -369,7 +387,7 @@ last()      // --> 3
 ```
 
 
-### Model Checker
+### 1.4.7. Model Checker
 
 The library a model checker capable of detecting liveness and safety conditions. For instance, this is an implementation of Dr. Lamport's Die Hard example:
 
@@ -525,8 +543,9 @@ checker({
 // empty(0)                      ==> [0,4] (goal: 4)
 ```
 
-## Change Log
+## 1.5. Change Log
 
+1.4.0  Adds an option to run the model in synchronized mode
 1.3.11 Minor refactoring
 1.3.10 Adds the ability to skip rendering if necessary
  1.3.9 Adds allowed actions
@@ -535,5 +554,5 @@ checker({
  1.3.6 adds a debounce mode
  1.3.5 adds a new component option to skip processing outdated proposals
 
-## Copyright and license
+## 1.6. Copyright and license
 Code and documentation copyright 2019 Jean-Jacques Dubray. Code released under the ISC license. Docs released under Creative Commons.
