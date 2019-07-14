@@ -4,9 +4,11 @@ Traditional programming models (OOP, FP, RP, FRP...) offer few temporal logic co
 
 SAM is generally implemented as a singleton and a single state tree, but that's not a requirement. The library supports a simple component model to modularize the application logic. Components implement any combination of actions, acceptors and reactors and can either operate of a local state or the instance state tree. Actions are converted to intents by the SAM pattern. Intents are invoked by the client/consumer of the SAM instance (which could be another SAM instance). SAM supports asynchronous actions. Intents have magic powers such as automatic retries, ordering or debouncing.
 
-SAM's structure is so precise that the library comes with a [model checker](#model-checker) that is capable of checking the correctness of your code by exploring all possible combinations of intents and values and validate that liveness conditions will be reached and that on the other hand no [safety condition](#safety-conditions) will be triggered.
+SAM's [structure is so precise](https://dzone.com/articles/the-three-approximations-you-should-never-use-when) that the library comes with a [model checker](#model-checker) that is capable of checking the correctness of your code by exploring all possible combinations of intents and values and validate that liveness conditions will be reached and that, on the other hand, no [safety condition](#safety-conditions) will be triggered.
 
 The `sam-pattern` library is implemented following SAM's own principles. 
+
+The pattern first introduced in June 2015 as [STAR](https://bitbucket.org/jdubray/star-javascript/src/default/) and then in it's [final form](https://www.infoq.com/articles/no-more-mvc-frameworks/) in February 2016.
 
 ## Table of Contents
 - [Installation](#installation)        
