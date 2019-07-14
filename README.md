@@ -28,7 +28,8 @@ The `sam-pattern` library is implemented following SAM's own principles.
   - [Components with Local State](#components-with-local-state)        
   - [Time Traveler](#time-traveler)        
   - [Debounce](#debounce)        
-  - [Model Checker](#model-checker-1)    
+  - [Model Checker](#model-checker-1)
+  - [TodoMVC App](#todomvc-app)    
 - [Change Log](#change-log)    
 - [Copyright and license](#copyright-and-license)
 
@@ -99,10 +100,9 @@ const [inc] = intents
 inc() 
 ```
 
-#### Code Samples
-[Rocket Launcher](https://codepen.io/sam-pattern/pen/qzYQgd)
+You can also take a look at this sample in CodePen.io: [Rocket Launcher](https://codepen.io/sam-pattern/pen/qzYQgd)
 
-[ToDoMVC](https://github.com/jdubray/sam-samples/tree/master/todomvc-app)
+
 
 ## Library
 
@@ -563,6 +563,8 @@ checker({
 // jug2jug({"j1":1,"j2":0})      ==> [3,4] (goal: 4)
 // empty(0)                      ==> [0,4] (goal: 4)
 ```
+### TodoMVC App
+[ToDoMVC](https://github.com/jdubray/sam-samples/tree/master/todomvc-app)
 
 ## Change Log
 
