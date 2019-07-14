@@ -8,12 +8,12 @@ SAM's structure is so precise that the library comes with a [model checker](#mod
 
 The `sam-pattern` library is implemented following SAM's own principles. 
 
-# Table of Contents
+## Table of Contents
 - [Installation](#installation)        
   - [Node.js](#nodejs)        
   - [Browsers](#browsers)        
-- [Getting started](#getting-started)        
-- [Code Samples](#code-samples)    
+  - [Getting started](#getting-started)        
+    - [Code Samples](#code-samples)    
 - [Library](#library)        
   - [Constructors](#constructors)        
   - [API to the Global SAM instance](#api-to-the-global-sam-instance)        
@@ -99,7 +99,7 @@ const [inc] = intents
 inc() 
 ```
 
-### Code Samples
+#### Code Samples
 [Rocket Launcher](https://codepen.io/sam-pattern/pen/qzYQgd)
 
 [ToDoMVC](https://github.com/jdubray/sam-samples/tree/master/todomvc-app)
