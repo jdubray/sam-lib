@@ -10,6 +10,12 @@ The `sam-pattern` library is implemented following SAM's own principles.
 
 The pattern first introduced in June 2015 as [STAR](https://bitbucket.org/jdubray/star-javascript/src/default/) and then in it's [final form](https://www.infoq.com/articles/no-more-mvc-frameworks/) in February 2016.
 
+## TODOMVC Samples
+
+[vanilla.js](https://github.com/jdubray/sam-samples/tree/master/todomvc-app)
+[lit-html](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-lit-html)
+[react](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-react)
+
 ## Table of Contents
 - [Installation](#installation)        
   - [Node.js](#nodejs)        
@@ -569,6 +575,8 @@ checker({
 
 ## Change Log
 
+1.4.3  Adds links to TODOMVC code samples
+1.4.2  Corrects a typo in package.json
 1.4.1  Changes setRender to accept only one function (or two)
 1.4.0  Adds an option to run the model in synchronized mode
 1.3.11 Minor refactoring
