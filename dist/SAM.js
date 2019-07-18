@@ -35,7 +35,10 @@
   const step = () => ({});
   const doNotRender = model => () => model.continue() === true;
   const wrap = (s, w) => m => s(w(m));
-
+  const log = f => (...args) => {
+    console.log(args);
+    f(...args);
+  };
   const e = value => (Array.isArray(value)
     ? value.map(e).reduce(and, true)
     : value === true || (value !== null && value !== undefined));
@@ -123,6 +126,33 @@
     }
   }
 
+  const handlers = {};
+
+  var events = {
+    on: (event, handler) => {
+      if (!E(handlers[event])) {
+        handlers[event] = [];
+      }
+      handlers[event].push(handler);
+    },
+
+    off: (event, handler) => {
+      A(handlers[event]).forEach((h, i) => {
+        if (h === handler) {
+          handlers[event].splice(i, 1);
+        }
+      });
+    },
+
+    emit: (events = [], data) => {
+      if (Array.isArray(events)) {
+        events.forEach(event => A(handlers[event]).forEach(f => f(data)));
+      } else {
+        A(handlers[events]).forEach(f => f(data));
+      }
+    }
+  };
+
   class Model {
     constructor(name) {
       this.__components = {};
@@ -130,6 +160,7 @@
       this.__name = name;
       this.__lastProposalTimestamp = 0;
       this.__allowedActions = [];
+      this.__eventQueue = [];
     }
 
     localState(name) {
@@ -211,6 +242,48 @@
           .oneOf(fatal, this.logger.fatal(warning));
       }
     }
+
+    prepareEvent(event, data) {
+      this.__eventQueue.push([event, data]);
+    }
+
+    resetEventQueue() {
+      this.__eventQueue = [];
+    }
+
+    flush() {
+      if (this.continue() === false) {
+        A(this.__eventQueue).forEach(([event, data]) => events.emit(event, data));
+        this.__eventQueue = [];
+      }
+    }
+
+    clone(state = this) {
+      const comps = state.__components;
+      delete state.__components;
+      const cln = JSON.parse(JSON.stringify(state));
+      if (comps) {
+        cln.__components = {};
+
+        Object.keys(comps).forEach((key) => {
+          const c = comps[key];
+          delete c.parent;
+          cln.__components[key] = Object.assign(this.clone(c), { parent: cln });
+        });
+      }
+      return cln
+    }
+
+    state(name, clone) {
+      const prop = n => (E(this[n]) ? this[n] : (E(this.__components[n]) ? this.__components[n] : this));
+      let state;
+      if (Array.isArray(name)) {
+        state = name.map(n => prop(n));
+      } else {
+        state = prop(name);
+      }
+      return clone && state ? this.clone(state) : state
+    }
   }
 
   // ISC License (ISC)
@@ -242,7 +315,13 @@
 
   function createInstance (options = {}) {
     const { max } = O(options.timetravel);
-    const { hasAsyncActions = true, instanceName = 'global', synchronize = false } = options;
+    const {
+      hasAsyncActions = true,
+      instanceName = 'global',
+      synchronize = false,
+      clone = false,
+      requestStateRepresentation
+    } = options;
     const { synchronizeInterval = 5 } = O(synchronize);
 
     // SAM's internal model
@@ -253,7 +332,12 @@
     const acceptors = [
       ({ __error }) => {
         if (__error) {
-          model.__error = __error;
+          if (__error.stack.indexOf('AssertionError') < 0) {
+            model.__error = __error;
+          } else {
+            console.log('--------------------------------------');
+            console.log(__error);
+          }
         }
       }
     ];
@@ -265,8 +349,8 @@
     const naps = [];
 
     // ancillary
-    let renderView = () => null;
-    let _render = () => null;
+    let renderView = m => m.flush();
+    let _render = m => m.flush();
     let storeRenderView = _render;
 
     // State Representation
@@ -277,11 +361,15 @@
 
         // render state representation (gated by nap)
         if (!naps.map(react).reduce(or, false)) {
-          renderView(model);
+          renderView(clone ? model.clone() : model);
         }
         model.renderNextTime();
       } catch (err) {
-        setTimeout(() => present({ __error: err }), 0);
+        if (err.stack.indexOf('AssertionError') < 0) {
+          setTimeout(() => present({ __error: err }), 0);
+        } else {
+          throw err
+        }
       }
     };
 
@@ -336,6 +424,7 @@
 
     let present = synchronize ? async (proposal, resolve) => {
       if (checkForOutOfOrder(proposal)) {
+        model.resetEventQueue();
         // accept proposal
         await Promise.all(acceptors.map(await accept(proposal)));
 
@@ -434,7 +523,11 @@
                   }
                   return
                 }
-                proposal.__error = err;
+                if (err.stack.indexOf('AssertionError') < 0) {
+                  proposal.__error = err;
+                } else {
+                  throw err
+                }
               }
 
               if (ignoreOutdatedProposals) {
@@ -446,7 +539,11 @@
                 retryCount = 0;
               } catch (err) {
                 // uncaught exception in an acceptor
-                present({ __error: err });
+                if (err.stack.indexOf('AssertionError') < 0) {
+                  present({ __error: err });
+                } else {
+                  throw err
+                }
               }
 
               if (debounceDelay > 0) {
@@ -463,7 +560,11 @@
             const proposal = action(...args);
             present(proposal);
           } catch (err) {
-            present({ __error: err });
+            if (err.stack.indexOf('AssertionError') < 0) {
+              present({ __error: err });
+            } else {
+              throw err
+            }
           }
         });
       }
@@ -476,7 +577,11 @@
     };
 
     const setRender = (render) => {
-      renderView = history ? wrap(render, s => (history ? history.snap(s) : s)) : render;
+      const flushEventsAndRender = (m) => {
+        m.flush && m.flush();
+        render && render(m);
+      };
+      renderView = history ? wrap(flushEventsAndRender, s => (history ? history.snap(s) : s)) : flushEventsAndRender;
       _render = render;
     };
 
@@ -530,10 +635,12 @@
       return model.allowedActions()
     };
 
+    const addEventHandler = ([event, handler]) => events.on(event, handler);
+
     // SAM's internal present function
     return ({
       // eslint-disable-next-line no-shadow
-      initialState, component, render, history, travel, logger, check, allowed, clearInterval
+      initialState, component, render, history, travel, logger, check, allowed, clearInterval, event
     }) => {
       intents = [];
 
@@ -545,14 +652,16 @@
         .on(logger, setLogger)
         .on(check, setCheck)
         .on(allowed, allowedActions)
-        .on(clearInterval, () => queue.clear());
+        .on(clearInterval, () => queue.clear())
+        .on(event, addEventHandler);
 
       return {
         hasNext: model.hasNext(),
         hasError: model.hasError(),
         errorMessage: model.errorMessage(),
         error: model.error(),
-        intents
+        intents,
+        state: name => model.state(name, clone)
       }
     }
   }
@@ -573,8 +682,9 @@
         const [display, representation] = render;
         render = state => display(typeof representation === 'function' ? representation(state) : state);
       }
-      SAM$1({ render });
+      SAM$1({ render: F(render) });
     },
+    addHandler: (event, handler) => SAM$1({ event: [event, handler] }),
     getIntents: actions => SAM$1({ component: { actions } }),
     addAcceptors: (acceptors, privateModel) => SAM$1({ component: { acceptors, privateModel } }),
     addReactors: (reactors, privateModel) => SAM$1({ component: { reactors, privateModel } }),
@@ -759,7 +869,12 @@
     on,
     oneOf,
     utils: {
-      O, A, N, NZ, S, F, E, or, and
+      O, A, N, NZ, S, F, E, or, and, log
+    },
+    events: {
+      on: events.on,
+      off: events.off,
+      emit: events.emit
     },
     checker
   };

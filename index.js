@@ -16,9 +16,10 @@ import createInstance from './lib/sam-instance'
 import SAM from './lib/SAM'
 import api from './lib/sam-actions'
 import {
-  O, A, N, NZ, S, F, E, on, oneOf, or, and, match, step, first, doNotRender
+  O, A, N, NZ, S, F, E, on, oneOf, or, and, match, step, first, doNotRender, log
 } from './lib/sam-utils'
 import { checker } from './lib/sam-checker'
+import events from './lib/sam-events'
 
 const {
   addInitialState, addComponent, setRender, addSafetyConditions,
@@ -49,7 +50,12 @@ export default {
   on,
   oneOf,
   utils: {
-    O, A, N, NZ, S, F, E, or, and
+    O, A, N, NZ, S, F, E, or, and, log
+  },
+  events: {
+    on: events.on,
+    off: events.off,
+    emit: events.emit
   },
   checker
 }

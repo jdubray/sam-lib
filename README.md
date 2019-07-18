@@ -1,20 +1,39 @@
 # A Temporal Programming library
 
-Traditional programming models (OOP, FP, RP, FRP...) offer few temporal logic constructs, if any. This library is an implementation of the [SAM pattern](http://sam.js.org), a software engineering pattern based on the semantics of [TLA+](https://en.wikipedia.org/wiki/TLA%2B) (the Temporal Logic of Actions). SAM (State-Action-Model) helps manage and reason about the application state from a temporal perspective. SAM's founding principle is that State Mutation must be a first class citizen of the programming model and as such mutations must occur in a well defined synchronized step. SAM defines a step as: Action -> Acceptor(s) -> Reactor(s) -> Next-Action and|or render. 
+Traditional programming models (OOP, FP, RP, FRP...) offer few temporal logic constructs, if any. Yet, we wrestle with implementing temporal aspects in many parts of code, not just on the client but also on the server.
 
-SAM is generally implemented as a singleton and a single state tree, but that's not a requirement. The library supports a simple component model to modularize the application logic. Components implement any combination of actions, acceptors and reactors and can either operate of a local state or the instance state tree. Actions are converted to intents by the SAM pattern. Intents are invoked by the client/consumer of the SAM instance (which could be another SAM instance). SAM supports asynchronous actions. Intents have magic powers such as automatic retries, ordering or debouncing.
+This library is an implementation of the [SAM pattern](http://sam.js.org), a software engineering pattern based on the semantics of [TLA+](https://en.wikipedia.org/wiki/TLA%2B) (the Temporal Logic of Actions). SAM (State-Action-Model) offers a systematic approach to managing and reasoning about the application state from a temporal perspective. SAM's founding principle is that State Mutation must be a first class citizen of the programming model and as such mutations must occur in a well defined synchronized step. SAM defines a step as: 
+```
+         _____________________________________________________________
+        |                                                             |
+        |        ___________Model___________                          |
+        v       |       (synchronized)      |                         |
+      Action -> | Acceptor(s) -> Reactor(s) | -> Next-Action and|or render state representation 
+        ^       |___________________________|        |
+        |                                            |
+        |____________________________________________|
+
+```
+An action is initiated by the SAM client/consumer of the state representation. An action computes a proposal to mutate the application state. The proposal is presented to the model which accepts, partially accepts or rejects the proposal (acceptors are units of mutation). Once the application state has mutated, the reactors compute the resulting application state. 
+
+SAM is generally implemented as a singleton and a single state tree, but that's not a requirement. SAM instances can work cooperatively, especially in a parent/child relationship (to manage a specific but ephemeral aspect of your application, e.g. a form).
+
+The library supports a simple component model to modularize the application logic. Components implement any combination of actions, acceptors and reactors and can either operate of their local state or the instance state tree. 
+
+Actions are converted to intents by the SAM pattern. Intents are invoked by the client/consumer of the SAM instance (which could be another SAM instance). SAM supports asynchronous actions. Intents have magic powers such as automatic retries, ordering or debouncing.
 
 SAM's [structure is so precise](https://dzone.com/articles/the-three-approximations-you-should-never-use-when) that the library comes with a [model checker](#model-checker) that is capable of checking the correctness of your code by exploring all possible combinations of intents and values and validate that liveness conditions will be reached and that, on the other hand, no [safety condition](#safety-conditions) will be triggered.
 
 The `sam-pattern` library is implemented following SAM's own principles. 
 
-The pattern first introduced in June 2015 as [STAR](https://bitbucket.org/jdubray/star-javascript/src/default/) and then in it's [final form](https://www.infoq.com/articles/no-more-mvc-frameworks/) in February 2016.
+The pattern was first introduced in June 2015 as [STAR](https://bitbucket.org/jdubray/star-javascript/src/default/) and then in it's [final form](https://www.infoq.com/articles/no-more-mvc-frameworks/) in February 2016.
 
 ## TODOMVC Samples
 
-[vanilla.js](https://github.com/jdubray/sam-samples/tree/master/todomvc-app)
-[lit-html](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-lit-html)
-[react](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-react)
+- [vanilla.js](https://github.com/jdubray/sam-samples/tree/master/todomvc-app)
+- [lit-html](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-lit-html)
+- [react](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-react)
+- [vue](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-react)
 
 ## Table of Contents
 - [Installation](#installation)        
@@ -126,6 +145,7 @@ You can also take a look at this sample in CodePen.io: [Rocket Launcher](https:/
 - `addNAPs`            : adds a list of next-action-predicates to the SAM instance. When a predicate returns `true`, the rendering is suspended until the next-action is completed
 - `getIntents`         : returns a list of intents, given a list of actions. Intents wrap actions with the call to the present method
 - `setRender`          : sets the render method
+- `addHandler`         : adds an event handler to the SAM loop (for instance, as an alternative to render)
 - `allowedActions`     : gets the allowed actions for the next step. Actions fail silently when not allowed.
 - `allow`              : allows an array of actions
 - `clearAllowedActions`: clears all allowed actions
@@ -153,7 +173,7 @@ The library includes a model checker capable of computing the behavior leading t
 - `reset`             : A function that is called after each iteration to return the model to the proper state, 
 - `liveness`          : a function that takes the application state as an input and returns a liveness condition (exected condition to be reached by some behavior) 
 - `safety`            : a function that takes the application state as an input and returns a safety condition (unexpected occurence of a state)
-- `options`           : checker options that restrict the search space - `depthMax`: how many steps in a behavior, `noDuplicateAction`: whether the model supports duplicate actions (in general it's true) , `doNotStartWith`: an array of intent names that should not be used to start a behavior
+- `options`           : checker options that restrict the search space - `depthMax`: how many steps in a behavior, `noDuplicateAction`: whether the model supports duplicate actions (in general it's true) , `doNotStartWith`: an array of intent names that should not be used to start a behavior, `clone`: when true, renders a shallow copy of the model
 - `success`           : a callback for every liveness condition detected
 - `err`               : a callback for every safety condition detected
 
@@ -574,15 +594,13 @@ checker({
 [ToDoMVC](https://github.com/jdubray/sam-samples/tree/master/todomvc-app)
 
 ## Change Log
-
+1.4.6  Adds access to the state representation as an alternative rendering mechanism
+1.4.4  Adds event handlers as an alternative rendering mechanism
 1.4.3  Adds links to TODOMVC code samples
-1.4.2  Corrects a typo in package.json
 1.4.1  Changes setRender to accept only one function (or two)
 1.4.0  Adds an option to run the model in synchronized mode
-1.3.11 Minor refactoring
 1.3.10 Adds the ability to skip rendering if necessary
  1.3.9 Adds allowed actions
- 1.3.8 Refactor part of the code
  1.3.7 adds exception handling
  1.3.6 adds a debounce mode
  1.3.5 adds a new component option to skip processing outdated proposals

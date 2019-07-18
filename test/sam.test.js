@@ -3,7 +3,7 @@
 const { expect } = require('chai')
 
 const {
-  SAM, first, api, createInstance, doNotRender, utils: { E }
+  SAM, first, api, createInstance, doNotRender, utils: { E, log }, events
 } = require('../dist/SAM')
 
 const SAMtest = createInstance({ instanceName: 'SAMTest' })
@@ -392,7 +392,7 @@ describe('SAM tests', () => {
     })
 
     it('should run the synchronize the present method', (done) => {
-      let SAMSynchronizeTest = createInstance({ instanceName: 'allowed', synchronize: true })
+      const SAMSynchronizeTest = createInstance({ instanceName: 'allowed', synchronize: true })
 
       expect(SAMSynchronizeTest).to.not.equal(SAM)
 
@@ -446,6 +446,80 @@ describe('SAM tests', () => {
       setTimeout(() => incBy1(), 0)
       expect(renderCounter).to.be.equal(0)
     }).timeout(5000)
+
+    it('should clone the model before rendering', () => {
+      const SAMCloneTest = createInstance({ instanceName: 'events', clone: true })
+
+      expect(SAMCloneTest).to.not.equal(SAM)
+      let m
+      const { intents } = SAMCloneTest({
+
+        initialState: {
+          counter: 0
+        },
+
+        component: {
+          actions: [
+            () => ({ incByX: 1 })
+          ],
+          acceptors: [
+            model => ({ incByX }) => {
+              if (E(incByX)) {
+                model.counter += incByX || 1
+              }
+              m = model
+            }
+          ]
+        },
+
+        render: (state) => {
+          expect(state).to.not.equal(m)
+          expect(state.counter).to.equal(m.counter)
+        }
+      })
+      const [inc] = intents
+
+      inc()
+    })
+
+    it('should give access to the state representation', () => {
+      const SAMStatetTest = createInstance({ instanceName: 'events' })
+
+      expect(SAMStatetTest).to.not.equal(SAM)
+      const { intents, state } = SAMStatetTest({
+        initialState: {
+          counter: 0,
+          another: { counter: 0 }
+        },
+
+        component: {
+          actions: [
+            () => ({ incByX: 1 })
+          ],
+          acceptors: [
+            model => ({ incByX }) => {
+              if (E(incByX)) {
+                model.counter += incByX || 1
+                model.another.counter += 10 * incByX || 10
+              }
+            }
+          ],
+          reactors: [
+            model => () => model.prepareEvent('count', model.counter)
+          ]
+        },
+
+        event: ['count', () => {
+          const foo = state()
+          const bar = state('another')
+          expect(state().counter).to.equal(1)
+          expect(state('another').counter).to.equal(10)
+        }]
+      })
+      const [inc] = intents
+
+      inc()
+    })
   })
 
   describe('timetraveler', () => {
@@ -516,6 +590,55 @@ describe('SAM tests', () => {
       setRender(state => expect(state.counter).to.be.equal(0))
 
       SAMTravelerTest({ travel: { index: 0 } })
+    })
+  })
+
+  describe('events', () => {
+
+    it('should allow to subscribe and publish an event', () => {
+      const test = (data) => {
+        expect(data.counter).to.equal(1)
+      }
+      events.on('event', test)
+      events.emit('event', { counter: 1 })
+      events.off('event', test)
+      events.emit('event', { counter: 2 })
+    })
+
+    it('should flush events upon rendering', () => {
+      const SAMEventTest = createInstance({ instanceName: 'events' })
+
+      expect(SAMEventTest).to.not.equal(SAM)
+
+      const handler = counter => expect(counter).to.be.equal(1)
+      const { intents } = SAMEventTest({
+        history: [],
+
+        initialState: {
+          counter: 0
+        },
+
+        component: {
+          actions: [
+            () => ({ incByX: 1 })
+          ],
+          acceptors: [
+            model => ({ incByX }) => {
+              if (E(incByX)) {
+                model.counter += incByX || 1
+              }
+            }
+          ],
+          reactors: [
+            model => () => model.prepareEvent('count', model.counter)
+          ]
+        },
+
+        event: ['count', handler]
+      })
+      const [inc] = intents
+
+      inc()
     })
   })
 })
