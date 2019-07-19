@@ -4,14 +4,14 @@ Traditional programming models (OOP, FP, RP, FRP...) offer few temporal logic co
 
 This library is an implementation of the [SAM pattern](http://sam.js.org), a software engineering pattern based on the semantics of [TLA+](https://en.wikipedia.org/wiki/TLA%2B) (the Temporal Logic of Actions). SAM (State-Action-Model) offers a systematic approach to managing and reasoning about the application state from a temporal perspective. SAM's founding principle is that State Mutation must be a first class citizen of the programming model and as such mutations must occur in a well defined synchronized step. SAM defines a step as: 
 ```
-         _____________________________________________________________
-        |                                                             |
-        |        ___________Model___________                          |
-        v       |       (synchronized)      |                         |
-      Action -> | Acceptor(s) -> Reactor(s) | -> Next-Action and|or render state representation 
-        ^       |___________________________|        |
-        |                                            |
-        |____________________________________________|
+     _____________________________________________________________
+    |                                                             |
+    |        ___________Model___________                          |
+    v       |       (synchronized)      |                         |
+  Action -> | Acceptor(s) -> Reactor(s) | -> Next-Action and|or Render 
+    ^       |___________________________|        |              State
+    |                                            |        
+    |____________________________________________|        
 
 ```
 An action is initiated by the SAM client/consumer of the state representation. An action computes a proposal to mutate the application state. The proposal is presented to the model which accepts, partially accepts or rejects the proposal (acceptors are units of mutation). Once the application state has mutated, the reactors compute the resulting application state. 
@@ -54,8 +54,7 @@ The pattern was first introduced in June 2015 as [STAR](https://bitbucket.org/jd
   - [Components with Local State](#components-with-local-state)        
   - [Time Traveler](#time-traveler)        
   - [Debounce](#debounce)        
-  - [Model Checker](#model-checker-1)
-  - [TodoMVC App](#todomvc-app)    
+  - [Model Checker](#model-checker-1)   
 - [Change Log](#change-log)    
 - [Copyright and license](#copyright-and-license)
 
@@ -590,20 +589,18 @@ checker({
 // jug2jug({"j1":1,"j2":0})      ==> [3,4] (goal: 4)
 // empty(0)                      ==> [0,4] (goal: 4)
 ```
-### TodoMVC App
-[ToDoMVC](https://github.com/jdubray/sam-samples/tree/master/todomvc-app)
 
 ## Change Log
-1.4.6  Adds access to the state representation as an alternative rendering mechanism
-1.4.4  Adds event handlers as an alternative rendering mechanism
-1.4.3  Adds links to TODOMVC code samples
-1.4.1  Changes setRender to accept only one function (or two)
-1.4.0  Adds an option to run the model in synchronized mode
-1.3.10 Adds the ability to skip rendering if necessary
- 1.3.9 Adds allowed actions
- 1.3.7 adds exception handling
- 1.3.6 adds a debounce mode
- 1.3.5 adds a new component option to skip processing outdated proposals
+- 1.4.6  Adds access to the state representation as an alternative rendering mechanism
+- 1.4.4  Adds event handlers as an alternative rendering mechanism
+- 1.4.3  Adds links to TODOMVC code samples
+- 1.4.1  Changes setRender to accept only one function (or two)
+- 1.4.0  Adds an option to run the model in synchronized mode
+- 1.3.10 Adds the ability to skip rendering if necessary
+- 1.3.9  Adds allowed actions
+- 1.3.7  Adds exception handling
+- 1.3.6  Adds a debounce mode
+- 1.3.5  Adds a new component option to skip processing outdated proposals
 
 ## Copyright and license
 Code and documentation copyright 2019 Jean-Jacques Dubray. Code released under the ISC license. Docs released under Creative Commons.
