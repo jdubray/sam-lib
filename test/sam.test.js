@@ -3,7 +3,7 @@
 const { expect } = require('chai')
 
 const {
-  SAM, first, api, createInstance, doNotRender, utils: { E, log }, events
+  SAM, first, api, createInstance, doNotRender, utils: { E }, events
 } = require('../dist/SAM')
 
 const SAMtest = createInstance({ instanceName: 'SAMTest' })
@@ -448,7 +448,7 @@ describe('SAM tests', () => {
     }).timeout(5000)
 
     it('should clone the model before rendering', () => {
-      const SAMCloneTest = createInstance({ instanceName: 'events', clone: true })
+      const SAMCloneTest = createInstance({ instanceName: 'clone', clone: true })
 
       expect(SAMCloneTest).to.not.equal(SAM)
       let m
@@ -483,7 +483,7 @@ describe('SAM tests', () => {
     })
 
     it('should give access to the state representation', () => {
-      const SAMStatetTest = createInstance({ instanceName: 'events' })
+      const SAMStatetTest = createInstance({ instanceName: 'access' })
 
       expect(SAMStatetTest).to.not.equal(SAM)
       const { intents, state } = SAMStatetTest({
@@ -510,8 +510,6 @@ describe('SAM tests', () => {
         },
 
         event: ['count', () => {
-          const foo = state()
-          const bar = state('another')
           expect(state().counter).to.equal(1)
           expect(state('another').counter).to.equal(10)
         }]

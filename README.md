@@ -1,10 +1,10 @@
 # A Temporal Programming library
 
-Traditional programming models (OOP, FP, RP, FRP...) offer few temporal logic constructs, if any. Yet, we wrestle with implementing temporal aspects in many parts of code, not just on the client but also on the server.
+Traditional programming models (OOP, FP, RP, FRP...) offer few temporal logic constructs, if any. Yet, we wrestle with implementing temporal aspects in many parts of our code, not just on the client but also on the server.
 
 This library is an implementation of the [SAM pattern](http://sam.js.org), a software engineering pattern based on the semantics of [TLA+](https://en.wikipedia.org/wiki/TLA%2B) (the Temporal Logic of Actions). SAM (State-Action-Model) offers a systematic approach to managing and reasoning about the application state from a temporal perspective. SAM's founding principle is that State Mutation must be a first class citizen of the programming model and as such mutations must occur in a well defined synchronized step. SAM defines a step as: 
 ```
-     _____________________________________________________________
+     _______________________... event ..._________________________
     |                                                             |
     |        ___________Model___________                          |
     v       |       (synchronized)      |                         |
@@ -20,7 +20,7 @@ SAM is generally implemented as a singleton and a single state tree, but that's 
 
 The library supports a simple component model to modularize the application logic. Components implement any combination of actions, acceptors and reactors and can either operate of their local state or the instance state tree. 
 
-Actions are converted to intents by the SAM pattern. Intents are invoked by the client/consumer of the SAM instance (which could be another SAM instance). SAM supports asynchronous actions. Intents have magic powers such as automatic retries, ordering or debouncing.
+Actions are converted to intents at setup time. Intents are invoked by the client/consumer in response to events. SAM supports asynchronous actions readily. Intents have magic powers such as automatic retries, ordering or debouncing.
 
 SAM's [structure is so precise](https://dzone.com/articles/the-three-approximations-you-should-never-use-when) that the library comes with a [model checker](#model-checker) that is capable of checking the correctness of your code by exploring all possible combinations of intents and values and validate that liveness conditions will be reached and that, on the other hand, no [safety condition](#safety-conditions) will be triggered.
 
@@ -34,6 +34,7 @@ The pattern was first introduced in June 2015 as [STAR](https://bitbucket.org/jd
 - [lit-html](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-lit-html)
 - [react](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-react)
 - [vue](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-react)
+- [angular](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-angular)
 
 ## Table of Contents
 - [Installation](#installation)        
@@ -54,7 +55,8 @@ The pattern was first introduced in June 2015 as [STAR](https://bitbucket.org/jd
   - [Components with Local State](#components-with-local-state)        
   - [Time Traveler](#time-traveler)        
   - [Debounce](#debounce)        
-  - [Model Checker](#model-checker-1)   
+  - [Model Checker](#model-checker-1)
+- [Support](#support)   
 - [Change Log](#change-log)    
 - [Copyright and license](#copyright-and-license)
 
@@ -589,6 +591,10 @@ checker({
 // jug2jug({"j1":1,"j2":0})      ==> [3,4] (goal: 4)
 // empty(0)                      ==> [0,4] (goal: 4)
 ```
+
+## Support
+
+Please post your questions/comments on the [SAM-pattern forum](https://gitter.im/jdubray/sam)
 
 ## Change Log
 - 1.4.6  Adds access to the state representation as an alternative rendering mechanism
