@@ -1,0 +1,5 @@
+test/
+.babelrc
+.editorconfig
+.eslintrc
+dieharder.js

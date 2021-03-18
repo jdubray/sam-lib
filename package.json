@@ -51,6 +51,5 @@
     "rollup-plugin-terser": "^5.1.0",
     "uglify-es": "^3.3.9"
   },
-  "unpkg": "dist/SAM.js",
-  "dependencies": {}
+  "unpkg": "dist/SAM.js"
 }

@@ -24,17 +24,24 @@ Actions are converted to intents at setup time. Intents are invoked by the clien
 
 SAM's [structure is so precise](https://dzone.com/articles/the-three-approximations-you-should-never-use-when) that the library comes with a [model checker](#model-checker) that is capable of checking the correctness of your code by exploring all possible combinations of intents and values and validate that liveness conditions will be reached and that, on the other hand, no [safety condition](#safety-conditions) will be triggered.
 
+The [sam-fsm library](https://www.npmjs.com/package/sam-fsm) is an add-on that allows you to simplify the definition of finite state machines. One or more FSMs can run in the same SAM instance and FSMs cohexist with standard SAM actions, acceptors and reactors. 
+
 The `sam-pattern` library is implemented following SAM's own principles. 
 
 The pattern was first introduced in June 2015 as [STAR](https://bitbucket.org/jdubray/star-javascript/src/default/) and then in it's [final form](https://www.infoq.com/articles/no-more-mvc-frameworks/) in February 2016.
 
-## TODOMVC Samples
+## Code Samples
+
+TODOMVC 
 
 - [vanilla.js](https://github.com/jdubray/sam-samples/tree/master/todomvc-app)
 - [lit-html](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-lit-html)
 - [react](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-react)
 - [vue](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-react)
 - [angular](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-angular)
+
+RealWorld
+- [uce](https://github.com/imnutz/rw-ce) (via @imnutz)
 
 ## Table of Contents
 - [Installation](#installation)        
@@ -95,7 +102,7 @@ You can also use it within the browser; install via npm and use the sam.js file 
 The library's name is `tp` (as in temporal programming)
 ```javascript
 // API to the global SAM instance
-const { addInitialState, addComponent, setRender } = tp
+const { SAM } = tp
 
 ```
 
