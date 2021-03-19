@@ -14,13 +14,13 @@ This library is an implementation of the [SAM pattern](http://sam.js.org), a sof
     |____________________________________________|        
 
 ```
-An action is initiated by the SAM client/consumer of the state representation. An action computes a proposal to mutate the application state. The proposal is presented to the model which accepts, partially accepts or rejects the proposal (acceptors are units of mutation). Once the application state has mutated, the reactors compute the resulting application state. 
+An action is initiated by the SAM client/consumer of the state representation. An action computes a proposal to mutate the application state. The proposal is presented to the model which accepts, partially accepts or rejects the proposal (acceptors are units of mutation and functions of proposals). Once the application state has mutated, the reactors compute the resulting application state. Reactors are invariant mutations, i.e. functions of the state that are independent of proposals. The factoring of your code as actions, acceptors and reactors leads to cleaner, more compact and easy to maintain code. 
 
-SAM is generally implemented as a singleton and a single state tree, but that's not a requirement. SAM instances can work cooperatively, especially in a parent/child relationship (to manage a specific but ephemeral aspect of your application, e.g. a form).
+SAM is generally implemented as a singleton and a single state tree, but that's not a requirement. SAM instances can work cooperatively, especially in a parent/child relationship (to manage a specific but ephemeral aspect of your application, e.g. a form or a wizard).
 
 The library supports a simple component model to modularize the application logic. Components implement any combination of actions, acceptors and reactors and can either operate of their local state or the instance state tree. 
 
-Actions are converted to intents at setup time. Intents are invoked by the client/consumer in response to events. SAM supports asynchronous actions readily. Intents have magic powers such as automatic retries, ordering or debouncing.
+Actions are converted into intents at setup time. Intents are invoked by the client/consumer in response to events. SAM supports asynchronous actions readily. Intents have magic powers such as automatic retries, ordering or debouncing. Intents can be gated and only applied to the model when allowed (see `allowedActions` below)
 
 SAM's [structure is so precise](https://dzone.com/articles/the-three-approximations-you-should-never-use-when) that the library comes with a [model checker](#model-checker) that is capable of checking the correctness of your code by exploring all possible combinations of intents and values and validate that liveness conditions will be reached and that, on the other hand, no [safety condition](#safety-conditions) will be triggered.
 
@@ -42,6 +42,9 @@ TODOMVC
 
 RealWorld
 - [uce](https://github.com/imnutz/rw-ce) (via @imnutz)
+
+Rocket Launcher
+- [vanilla.js](https://codepen.io/sam-pattern/pen/XWNGNBy) with `sam-fsm` library
 
 ## Table of Contents
 - [Installation](#installation)        
@@ -188,7 +191,7 @@ The library includes a model checker capable of computing the behavior leading t
 ### Utils
 - `first`             : returns the first element of its argument (array)
 - `match`             : Given an array of booleans and an array object, it returns the first object which corresponding boolean value is true
-- `on`                : a helper function which takes an object `o` and a function `f` as arguments and calls `f(o)` if the object exists. `on` calls can be chained. This function to chain a series of acceptors
+- `on`                : a helper function which takes an object `o` and a function `f` as arguments and calls `f(o)` if the object exists. `on` calls can be chained. This function is used to chain a series of acceptors
 - `oneOf`             : same as `on` but will stop after the first value that is found to exist
 
 ## Exception Handling
@@ -216,7 +219,7 @@ render: (state) => {
 
 In its pure form, the SAM pattern does not support asynchronous acceptors, all model mutations must be synchronous. If you wanted to call a downstream API to create, update or delete some entity that would technically be incorrect. The way to do it would be to use a next-action-predicate (NAP) that will make the call and present the results back to the model.
 
-That can be a little bit of a boiler plate, especially if your UX is expected to be synchronous. Very often users are willing for an API call to complete before they want to do something else.
+That can be a little bit of a boiler plate, especially if your UX is expected to be synchronous. Very often users are willing to wait for an API call to complete before they want to do something else.
 
 SAM allows you to synchronize the `present` method and queue all other action proposals in the mean time. There is an option to create a SAM instance that will be synchronized:
 
@@ -333,7 +336,7 @@ test()      // -> testing, 11
 
 ### Components with Local State
 
-A named component operates on their local state (which can be initialized via the `localState` property). The component's acceptors and reactors can access the state tree of the SAM instance via the `parent` property.   
+A named component operates on its local state (which can be initialized via the `localState` property). The component's acceptors and reactors can access the state tree of the SAM instance via the `parent` property.   
 
 ```javascript
 const [tick] = SAM({
@@ -604,6 +607,8 @@ checker({
 Please post your questions/comments on the [SAM-pattern forum](https://gitter.im/jdubray/sam)
 
 ## Change Log
+- 1.5.0  Augments the `allowedActions` implementation to use action labels to identify allowed actions
+- 1.4.9  Adds reference to the sam-fsm library
 - 1.4.6  Adds access to the state representation as an alternative rendering mechanism
 - 1.4.4  Adds event handlers as an alternative rendering mechanism
 - 1.4.3  Adds links to TODOMVC code samples

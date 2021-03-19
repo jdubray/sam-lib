@@ -476,7 +476,7 @@
     });
 
     const isAllowed = action => model.allowedActions().length === 0
-                             || model.allowedActions().map(a => a === action).reduce(or, false);
+                             || model.allowedActions().map(a => typeof a === 'string' ? a === a.__actionName : a === action).reduce(or, false);
     const acceptLocalState = (component) => {
       if (E(component.name)) {
         model.setComponentState(component);
@@ -552,6 +552,7 @@
               }
             }
           };
+          intent.__actionName = action.__actionName;
           return intent
         });
       } else {
@@ -627,12 +628,14 @@
     };
 
     const allowedActions = ({ actions = [], clear = false }) => {
-      if (actions.length > 0) {
-        model.addAllowedActions(actions);
-      } else if (clear) {
+      if (clear) {
         model.clearAllowedActions();
       }
-      return model.allowedActions()
+      if (actions.length > 0) {
+        model.addAllowedActions(actions);
+      }
+      return model.__allowedActions
+
     };
 
     const addEventHandler = ([event, handler]) => events.on(event, handler);
