@@ -476,7 +476,7 @@
     });
 
     const isAllowed = action => model.allowedActions().length === 0
-                             || model.allowedActions().map(a => typeof a === 'string' ? a === a.__actionName : a === action).reduce(or, false);
+                             || model.allowedActions().map(a => typeof a === 'string' ? a === action.__actionName : a === action).reduce(or, false);
     const acceptLocalState = (component) => {
       if (E(component.name)) {
         model.setComponentState(component);
@@ -550,7 +550,7 @@
                 needsDebounce = true;
                 setTimeout(() => intent({ __resetDebounce: true }), debounceDelay);
               }
-            }
+            } 
           };
           intent.__actionName = action.__actionName;
           return intent

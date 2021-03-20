@@ -607,7 +607,7 @@ checker({
 Please post your questions/comments on the [SAM-pattern forum](https://gitter.im/jdubray/sam)
 
 ## Change Log
-- 1.5.0  Augments the `allowedActions` implementation to use action labels to identify allowed actions
+- 1.5.1  Augments the `allowedActions` implementation to use action labels to identify allowed actions
 - 1.4.9  Adds reference to the sam-fsm library
 - 1.4.6  Adds access to the state representation as an alternative rendering mechanism
 - 1.4.4  Adds event handlers as an alternative rendering mechanism
