@@ -93,7 +93,7 @@ const child = api(createInstance())
 ```
 
 ### Browsers
-You can also use it within the browser; install via npm and use the sam.js file found within the download. For example:
+You can also use it within the browser; install via npm and use the `./dist/SAM.js` file. For example:
 
 ```html
 <script src="./node_modules/sam-pattern/dist/SAM.js"></script>
@@ -607,6 +607,7 @@ checker({
 Please post your questions/comments on the [SAM-pattern forum](https://gitter.im/jdubray/sam)
 
 ## Change Log
+- 1.5.2  Minifies the lib (10kB)
 - 1.5.1  Augments the `allowedActions` implementation to use action labels to identify allowed actions
 - 1.4.9  Adds reference to the sam-fsm library
 - 1.4.6  Adds access to the state representation as an alternative rendering mechanism
