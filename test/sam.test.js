@@ -12,21 +12,28 @@ const {
   hasNext, setRender
 } = api(SAMtest)
 
-let tick = () => ({})
+let tick 
+let labeledTick
+let anotherLabeledTick
 
 describe('SAM tests', () => {
   before(() => {
-    tick = first(SAMtest({
+    const intents = SAMtest({
       component: {
         actions: [
-          () => ({ test: true })
+          () => ({ test: true }),
+          { label: 'LABELED_ACTION', action: () => ({ labeledAction: true }) },
+          ['ANOTHER_LABELED_ACTION', () => ({anotherLabel: true })]
         ]
       }
-    }).intents)
+    }).intents
+    tick = intents[0]
+    labeledTick = intents[1]
+    anotherLabeledTick = intents[2]
   })
 
   describe('loop', () => {
-    it('should create an intent', () => {
+    it('should create an intent and a labeled intent', () => {
       SAMtest({
         initialState: {
           counter: 10,
@@ -36,6 +43,10 @@ describe('SAM tests', () => {
       })
 
       expect(tick).to.exist
+      expect(labeledTick).to.exist
+      expect(labeledTick.__actionName).to.equal('LABELED_ACTION')
+      expect(anotherLabeledTick).to.exist
+      expect(anotherLabeledTick.__actionName).to.equal('ANOTHER_LABELED_ACTION')
     })
 
     it('should add an acceptor and some private state', () => {

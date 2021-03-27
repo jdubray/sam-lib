@@ -46,6 +46,8 @@ RealWorld
 Rocket Launcher
 - [vanilla.js](https://codepen.io/sam-pattern/pen/XWNGNBy) with `sam-fsm` library
 
+Please check the unit tests for specific use cases.
+
 ## Table of Contents
 - [Installation](#installation)        
   - [Node.js](#nodejs)        
@@ -122,7 +124,8 @@ addInitialState({
 
 const { intents } = addComponent({ 
   actions: [
-    () => ({ incBy: 1 })
+    () => ({ incBy: 1 }),
+    ['LABELED_ACTION', () => ({ incBy: 2})]
   ],
   acceptors: [
     model => proposal => model.counter += proposal.incBy || 1
@@ -157,7 +160,7 @@ You can also take a look at this sample in CodePen.io: [Rocket Launcher](https:/
 - `getIntents`         : returns a list of intents, given a list of actions. Intents wrap actions with the call to the present method
 - `setRender`          : sets the render method
 - `addHandler`         : adds an event handler to the SAM loop (for instance, as an alternative to render)
-- `allowedActions`     : gets the allowed actions for the next step. Actions fail silently when not allowed.
+- `allowedActions`     : gets the allowed actions for the next step. Actions fail silently when not allowed
 - `allow`              : allows an array of actions
 - `clearAllowedActions`: clears all allowed actions
 
@@ -167,7 +170,18 @@ You can also take a look at this sample in CodePen.io: [Rocket Launcher](https:/
 A component specification includes options:
 - `ignoreOutdatedProposals` when true, the model's will reject all action proposals that out of order. In the event that a proposal comes after another more recent one was processed, it will be rejected. Note: this option is only available for asynchronous actions.
 - `debounce` when providing a value greater than 0, all intents of the corresponding component will be debounced by that amount in ms. Note: this option is only available for asynchronous actions.
-- `retry` { `delay`, `max` } when specified, it will retry invoking an intent in case of an unhandled exception up to `max` times and after `delay` ms.
+- `retry` { `delay`, `max` } when specified, it will retry invoking an intent in case of an unhandled exception up to `max` times and after `delay` ms
+
+Note: actions can be labeled using an array of two elements, the first element being the action label:
+```javascript
+const actions = [
+    () => ({ incBy: 1 }),
+    ['LABELED_ACTION', () => ({ incBy: 2})]
+  ]
+```
+
+Labels can be used in specifying the allowed actions in a given state. Please see the [sam-fsm](https://www.npmjs.com/package/sam-fsm) library for some examples.
+
 
 ### Time Travel
 SAM's implementation is capable of time traveling (return to a prior state of the model)
@@ -607,6 +621,8 @@ checker({
 Please post your questions/comments on the [SAM-pattern forum](https://gitter.im/jdubray/sam)
 
 ## Change Log
+- 1.5.6  Adds an optional action label which can be used to specify allowed action
+- 1.5.5  Fixes a defect associated to `sam-fsm` guarded transitions
 - 1.5.2  Minifies the lib (10kB)
 - 1.5.1  Augments the `allowedActions` implementation to use action labels to identify allowed actions
 - 1.4.9  Adds reference to the sam-fsm library
