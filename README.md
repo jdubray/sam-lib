@@ -28,7 +28,7 @@ The [sam-fsm library](https://www.npmjs.com/package/sam-fsm) is an add-on that a
 
 The `sam-pattern` library is implemented following SAM's own principles. 
 
-The pattern was first introduced in June 2015 as [STAR](https://bitbucket.org/jdubray/star-javascript/src/default/) and then in it's [final form](https://www.infoq.com/articles/no-more-mvc-frameworks/) in February 2016.
+The pattern was first introduced in June 2015 as [STAR](https://github.com/jdubray/sam-samples/tree/master/star-java) and then in it's [final form](https://www.infoq.com/articles/no-more-mvc-frameworks/) in February 2016.
 
 ## Code Samples
 
@@ -134,10 +134,11 @@ const { intents } = addComponent({
 
 setRender((state) => console.log(state.counter))
 
-const [inc] = intents
+const [inc, incBy2] = intents
 
-// Apply the inc action
+// Apply actions
 inc() 
+incBy2()
 ```
 
 You can also take a look at this sample in CodePen.io: [Rocket Launcher](https://codepen.io/sam-pattern/pen/qzYQgd)
@@ -161,7 +162,8 @@ You can also take a look at this sample in CodePen.io: [Rocket Launcher](https:/
 - `setRender`          : sets the render method
 - `addHandler`         : adds an event handler to the SAM loop (for instance, as an alternative to render)
 - `allowedActions`     : gets the allowed actions for the next step. Actions fail silently when not allowed
-- `allow`              : allows an array of actions
+- `addAllowedActions`  : adds an action to the allowedActions array
+- `allow`              : adds an array of actions to the allowedActions array
 - `clearAllowedActions`: clears all allowed actions
 
 - `step`               : a simple action that executes a SAM step without changing the application state
@@ -621,7 +623,8 @@ checker({
 Please post your questions/comments on the [SAM-pattern forum](https://gitter.im/jdubray/sam)
 
 ## Change Log
-- 1.5.6  Adds an optional action label which can be used to specify allowed action
+- 1.5.9  Adds `disallowedActions` to support composite state machines (`sam-fsm`)
+- 1.5.8  Adds an optional action label which can be used to specify allowed actions
 - 1.5.5  Fixes a defect associated to `sam-fsm` guarded transitions
 - 1.5.2  Minifies the lib (10kB)
 - 1.5.1  Augments the `allowedActions` implementation to use action labels to identify allowed actions

@@ -5,6 +5,7 @@ const { expect } = require('chai')
 const {
   SAM, first, api, createInstance, doNotRender, utils: { E }, events
 } = require('../dist/SAM')
+const { default: Model } = require('../lib/sam-model')
 
 const SAMtest = createInstance({ instanceName: 'SAMTest' })
 
@@ -648,6 +649,30 @@ describe('SAM tests', () => {
       const [inc] = intents
 
       inc()
+    })
+  })
+
+  describe('Model tests', () => {
+
+    it('should manage allowed and disallowed actions properly', () => {
+      const model = new Model('test-allowed-actions')
+      expect(model.allowedActions().length).to.equal(0)
+      model.addAllowedActions('foo')
+      model.addDisallowedActions('bar')
+      expect(model.allowedActions().length).to.equal(1)
+      expect(model.disallowedActions().length).to.equal(1)
+      model.clearAllowedActions()
+      model.clearDisallowedActions()
+      expect(model.allowedActions().length).to.equal(0)
+      expect(model.disallowedActions().length).to.equal(0)
+    })
+
+    it(`should add a component local state`, () => {
+      const model = new Model('test-component') 
+      const comp = { name: 'local-component', localState: { counter: 0 }} 
+      model.setComponentState(comp)
+      expect(comp.localState.counter).to.equal(0)
+      expect(model.localState('local-component').counter).to.equal(0)
     })
   })
 })
