@@ -623,6 +623,7 @@ checker({
 Please post your questions/comments on the [SAM-pattern forum](https://gitter.im/jdubray/sam)
 
 ## Change Log
+- 1.5.10 Adds action parameter `stateMachineId` to support composite state machines (`sam-fsm`)
 - 1.5.9  Adds `disallowedActions` to support composite state machines (`sam-fsm`)
 - 1.5.8  Adds an optional action label which can be used to specify allowed actions
 - 1.5.5  Fixes a defect associated to `sam-fsm` guarded transitions
