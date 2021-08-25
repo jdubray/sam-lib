@@ -37,7 +37,7 @@ TODOMVC
 - [vanilla.js](https://github.com/jdubray/sam-samples/tree/master/todomvc-app)
 - [lit-html](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-lit-html)
 - [react](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-react)
-- [vue](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-react)
+- [vue](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-vue)
 - [angular](https://github.com/jdubray/sam-samples/tree/master/todomvc-app-angular)
 
 RealWorld
