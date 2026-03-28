@@ -3,9 +3,8 @@
 const { expect } = require('chai')
 
 const {
-  SAM, first, api, createInstance, doNotRender, utils: { E }, events
+  SAM, first, api, createInstance, doNotRender, utils: { E }, events, Model
 } = require('../dist/SAM')
-const { default: Model } = require('../lib/sam-model')
 
 const SAMtest = createInstance({ instanceName: 'SAMTest' })
 

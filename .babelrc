@@ -1,7 +1,9 @@
 {
     "presets": ["@babel/preset-env"],
     "plugins": [
-        ["@babel/transform-runtime"]
+        ["@babel/transform-runtime"],
+        ["@babel/plugin-transform-optional-chaining"],
+        ["@babel/plugin-transform-nullish-coalescing-operator"]
         //["@babel/plugin-transform-modules-umd"]
     ]
 }

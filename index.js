@@ -18,12 +18,13 @@ import api from './lib/sam-actions'
 import {
   O, A, N, NZ, S, F, E, on, oneOf, or, and, match, step, first, doNotRender, log
 } from './lib/sam-utils'
-import { checker } from './lib/sam-checker'
+import { checker, permutations, apply } from './lib/sam-checker'
 import events from './lib/sam-events'
+import Model from './lib/sam-model'
 
 const {
   addInitialState, addComponent, setRender, addSafetyConditions,
-  getIntents, addAcceptors, addReactors, addNAPs
+  getIntents, addAcceptors, addReactors, addNAPs, addHandler
 } = api()
 
 export default {
@@ -41,6 +42,7 @@ export default {
   addSafetyConditions,
   getIntents,
   setRender,
+  addHandler,
 
   // Utils
   step,
@@ -57,5 +59,8 @@ export default {
     off: events.off,
     emit: events.emit
   },
-  checker
+  checker,
+  permutations,
+  apply,
+  Model
 }
