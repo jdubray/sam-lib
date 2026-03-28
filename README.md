@@ -523,6 +523,7 @@ checker({
 Please post your questions and comments on the [SAM-pattern forum](https://gitter.im/jdubray/sam).
 
 ## Change Log
+- 1.6.0  Fixes destructive `clone()` in model and time-travel (component state no longer destroyed on render/snapshot); fixes `log()` (correct `__logger` property, lazy invocation, `warning` typo, wrong `error`/`fatal` args); fixes out-of-order proposal detection (timestamp never advanced); removes spurious `format` argument from `apply()`; fixes intent memory leak in `addComponent`; adds `retry` option (`retryMax`, `retryDelay`) to `addComponent` for automatic action retry
 - 1.5.10 Adds `stateMachineId` action parameter to support composite state machines (`sam-fsm`)
 - 1.5.9  Adds `disallowedActions` to support composite state machines (`sam-fsm`)
 - 1.5.8  Adds optional action labels usable to specify allowed actions

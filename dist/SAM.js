@@ -495,7 +495,7 @@
     };
     const checkForOutOfOrder = proposal => {
       if (proposal.__startTime) {
-        if (proposal.__startTime <= model.__lastProposalTimestamp) {
+        if (proposal.__startTime < model.__lastProposalTimestamp) {
           return false;
         }
         model.__lastProposalTimestamp = proposal.__startTime;

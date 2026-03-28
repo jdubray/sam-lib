@@ -1,11 +1,11 @@
 {
-  "name": "sam-pattern",
-  "version": "1.6.0",
+  "name": "@cognitive-fab/sam-pattern",
+  "version": "1.6.1",
   "description": "SAM Pattern library",
   "main": "./dist/SAM.js",
   "scripts": {
     "build": "rollup --bundleConfigAsCjs -c rollup.config.js",
-    "test": "node node_modules/mocha/bin/mocha.js --require @babel/register 'test/**/*.test.js'",
+    "test": "node node_modules/mocha/bin/mocha.js --require @babel/register --spec \"test/**/*.test.js\"",
     "minify": "minify ./dist/SAM.js -d dist"
   },
   "repository": {

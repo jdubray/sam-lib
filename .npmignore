@@ -1,5 +1,11 @@
 test/
+.claude/
 .babelrc
 .editorconfig
 .eslintrc
+.gitignore
+.npmrc
+.npmrc.bak
 dieharder.js
+package-lock.json
+rollup.config.js
