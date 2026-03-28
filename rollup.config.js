@@ -1,7 +1,7 @@
 const path = require('path')
-const babel = require('rollup-plugin-babel')
-const resolve = require('rollup-plugin-node-resolve')
-const commonjs = require('rollup-plugin-commonjs')
+const babel = require('@rollup/plugin-babel').babel
+const resolve = require('@rollup/plugin-node-resolve').nodeResolve
+const commonjs = require('@rollup/plugin-commonjs').default
 
 module.exports = {
   input: path.resolve(__dirname, 'index.js'),
@@ -15,7 +15,14 @@ module.exports = {
     commonjs({ include: 'node_modules/**' }),
     babel({
       exclude: 'node_modules/**',
-      runtimeHelpers: true
+      babelHelpers: 'bundled',
+      configFile: false,
+      babelrc: false,
+      presets: [['@babel/preset-env', { targets: 'Chrome >= 80, Firefox >= 75, Safari >= 13.1, Node >= 14' }]],
+      plugins: [
+        '@babel/plugin-transform-optional-chaining',
+        '@babel/plugin-transform-nullish-coalescing-operator'
+      ]
     })
   ]
 }
