@@ -578,10 +578,10 @@
     }).filter(val => val !== '').join(', '));
   };
   const react = r => r();
-  const accept = proposal => async a => a(proposal);
+  const accept = (proposal, stepApi) => async a => a(proposal, stepApi);
   // synchronous variant so acceptor exceptions (e.g. SamShapeError) propagate to
   // the intent instead of becoming unhandled rejections
-  const acceptSync = proposal => a => a(proposal);
+  const acceptSync = (proposal, stepApi) => a => a(proposal, stepApi);
 
   // errors the strict profile lets propagate to the intent caller rather than
   // converting to an __error proposal
@@ -634,16 +634,45 @@
     let modelShape = null;
     const stepMutations = new Set();
 
+    // v2 (#22): per-step enabledness observability
+    const stepWrites = new Set();
+    const stepRejections = [];
+    let currentIntentName = null;
+    let stepListener = null;
+    const stepApi = {
+      /**
+       * Records an explicit, observable rejection of the current proposal —
+       * distinct from silent fall-through and from the __error slot.
+       * @param {string} reason - why the acceptor rejected the proposal
+       */
+      reject: reason => {
+        stepRejections.push({
+          intent: currentIntentName,
+          reason
+        });
+      }
+    };
+    const beginStep = proposal => {
+      var _proposal$__actionNam;
+      currentIntentName = (_proposal$__actionNam = proposal.__actionName) !== null && _proposal$__actionNam !== void 0 ? _proposal$__actionNam : null;
+      stepMutations.clear();
+      stepWrites.clear();
+      stepRejections.length = 0;
+    };
+
     // strict mode hands acceptors/reactors/naps a sealed view of the model:
     // writes to undeclared or ill-typed keys throw SamShapeError; framework
     // internals (__-prefixed) are exempt. Also records per-step mutations.
     const sealedModel = strict ? new Proxy(model, {
       set(target, prop, value) {
-        if (modelShape && typeof prop === 'string' && prop.indexOf('__') !== 0) {
-          const violation = checkShapeWrite(modelShape, prop, value);
-          if (violation) {
-            throw new SamShapeError(prop, violation);
+        if (typeof prop === 'string' && prop.indexOf('__') !== 0) {
+          if (modelShape) {
+            const violation = checkShapeWrite(modelShape, prop, value);
+            if (violation) {
+              throw new SamShapeError(prop, violation);
+            }
           }
+          stepWrites.add(prop);
           if (target[prop] !== value) {
             stepMutations.add(prop);
           }
@@ -652,7 +681,8 @@
         return true;
       },
       deleteProperty(target, prop) {
-        if (modelShape && typeof prop === 'string' && prop.indexOf('__') !== 0) {
+        if (typeof prop === 'string' && prop.indexOf('__') !== 0) {
+          stepWrites.add(prop);
           stepMutations.add(prop);
         }
         delete target[prop];
@@ -694,10 +724,35 @@
       });
     };
 
-    // v2 (#21/#22): per-step observability — Phase 3 adds rejections
-    const lastStep = () => ({
-      mutations: Array.from(stepMutations)
-    });
+    // v2 (#21/#22): per-step observability — every no-op step is mechanically
+    // classifiable as rejected | unhandled | identity-by-mutation
+    const lastStep = () => {
+      const rejections = stepRejections.slice();
+      const mutations = Array.from(stepMutations);
+      const writes = Array.from(stepWrites);
+      let classification = 'unhandled';
+      if (rejections.length > 0) {
+        classification = 'rejected';
+      } else if (mutations.length > 0) {
+        classification = 'mutated';
+      } else if (writes.length > 0) {
+        classification = 'identity-by-mutation';
+      }
+      return {
+        intent: currentIntentName,
+        mutations,
+        writes,
+        rejections,
+        classification
+      };
+    };
+    const endStep = () => {
+      const step = lastStep();
+      if (devWarnings && strict && step.intent != null && step.classification === 'unhandled') {
+        console.warn("SAM: unhandled proposal \u2014 intent '".concat(step.intent, "' fired but no acceptor mutated the model or rejected the proposal"));
+      }
+      stepListener && stepListener(step);
+    };
     const mount = (arr = [], elements = [], operand = sealedModel) => elements.map(el => arr.push(el(operand)));
     let intents;
     const acceptors = [({
@@ -786,11 +841,12 @@
     };
     let present = synchronize ? async (proposal, resolve) => {
       if (checkForOutOfOrder(proposal)) {
-        stepMutations.clear();
+        beginStep(proposal);
         model.resetEventQueue();
         // accept proposal
-        await Promise.all(acceptors.map(await accept(proposal)));
+        await Promise.all(acceptors.map(accept(proposal, stepApi)));
         storeBehavior(proposal);
+        endStep();
 
         // Continue to state representation
         state();
@@ -798,10 +854,11 @@
       }
     } : (proposal, resolve) => {
       if (checkForOutOfOrder(proposal)) {
-        stepMutations.clear();
+        beginStep(proposal);
         // accept proposal (synchronously, so strict-profile errors propagate)
-        acceptors.forEach(acceptSync(proposal));
+        acceptors.forEach(acceptSync(proposal, stepApi));
         storeBehavior(proposal);
+        endStep();
 
         // Continue to state representation
         state();
@@ -955,7 +1012,10 @@
                 });
               }
               if (watchForNoop) {
-                if (display(model) === beforeSnapshot) {
+                if (stepRejections.length > 0) {
+                  // an explicit rejection proves the intent is wired and guarded
+                  noopCount = 0;
+                } else if (display(model) === beforeSnapshot) {
                   noopCount += 1;
                   if (noopCount >= neverEnabledThreshold && !warnedNeverEnabled) {
                     var _action$__actionName;
@@ -1091,10 +1151,13 @@
       check,
       allowed,
       clearInterval,
-      event
+      event,
+      stepListener: stepListenerParam
     }) => {
       intents = [];
-      on(history, setHistory).on(initialState, addInitialState).on(component, addComponent).on(render, setRender).on(travel, timetravel).on(logger, setLogger).on(check, setCheck).on(allowed, allowedActions).on(clearInterval, () => queue.clear()).on(event, addEventHandler);
+      on(history, setHistory).on(stepListenerParam, listener => {
+        stepListener = listener;
+      }).on(initialState, addInitialState).on(component, addComponent).on(render, setRender).on(travel, timetravel).on(logger, setLogger).on(check, setCheck).on(allowed, allowedActions).on(clearInterval, () => queue.clear()).on(event, addEventHandler);
       return {
         hasNext: model.hasNext(),
         hasError: model.hasError(),
