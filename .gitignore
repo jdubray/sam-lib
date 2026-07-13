@@ -91,3 +91,5 @@ typings/
 .vscode/
 
 setup.sh
+.memsearch/
+.npmrc.bak
