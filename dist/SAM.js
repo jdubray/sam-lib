@@ -753,6 +753,29 @@
       }
       stepListener && stepListener(step);
     };
+
+    // v2 (#23/#24): structural registry — external tools (explorer, transpiler,
+    // linter) recover intents, schemas, domains, acceptor bindings and the model
+    // shape from the instance instead of parsing code or side-channel manifests
+    const intentRegistry = {};
+    const acceptorRegistry = {
+      keyed: [],
+      broadcast: 0
+    };
+    const manifest = () => ({
+      intents: Object.keys(intentRegistry).reduce((acc, name) => {
+        acc[name] = {
+          schema: intentRegistry[name].schema,
+          domain: intentRegistry[name].domain
+        };
+        return acc;
+      }, {}),
+      acceptors: {
+        keyed: acceptorRegistry.keyed.slice(),
+        broadcast: acceptorRegistry.broadcast
+      },
+      modelShape: modelShape ? Object.assign({}, modelShape) : null
+    });
     const mount = (arr = [], elements = [], operand = sealedModel) => elements.map(el => arr.push(el(operand)));
     let intents;
     const acceptors = [({
@@ -936,6 +959,14 @@
       const namedActions = normalizeNamedActions(component.actions);
       const actionList = namedActions !== null && namedActions !== void 0 ? namedActions : component.actions;
       let intentList;
+      if (namedActions) {
+        namedActions.forEach(action => {
+          intentRegistry[action.__actionName] = {
+            schema: action.__schema,
+            domain: action.__domain
+          };
+        });
+      }
 
       // Decorate actions to present proposal to the model
       if (hasAsyncActions) {
@@ -1069,7 +1100,31 @@
       }), {}) : intentList;
 
       // Add component's acceptors,  reactors, naps and safety condition to SAM instance
-      mount(acceptors, component.acceptors, component.localState);
+      if (component.acceptors && !Array.isArray(component.acceptors) && typeof component.acceptors === 'object') {
+        // v2 (#23): keyed acceptor registration — the framework binds each
+        // acceptor to its action, so acceptor bodies contain only guards and
+        // mutations; the switch-dispatch monolith is inexpressible in this form
+        Object.keys(component.acceptors).forEach(key => {
+          const acceptorFactory = component.acceptors[key];
+          if (key === '*') {
+            // explicitly-marked cross-cutting (broadcast) acceptor
+            acceptorRegistry.broadcast += 1;
+            mount(acceptors, [acceptorFactory], component.localState);
+            return;
+          }
+          if (strict && intentRegistry[key] === undefined) {
+            throw new Error("SAM: keyed acceptor '".concat(key, "' does not match any registered intent (declare the intent first, or use '*' for cross-cutting acceptors)"));
+          }
+          acceptorRegistry.keyed.push(key);
+          mount(acceptors, [operand => {
+            const acceptor = acceptorFactory(operand);
+            return (proposal, api) => proposal.__actionName === key ? acceptor(proposal, api) : undefined;
+          }], component.localState);
+        });
+      } else {
+        acceptorRegistry.broadcast += A(component.acceptors).length;
+        mount(acceptors, component.acceptors, component.localState);
+      }
       mount(reactors, component.reactors, component.localState);
       mount(naps, rollback(component.safety), component.localState);
       mount(naps, component.naps, component.localState);
@@ -1168,6 +1223,7 @@
         getState,
         setState,
         lastStep,
+        manifest,
         dispose: () => synchronize && queue.clear()
       };
     };
