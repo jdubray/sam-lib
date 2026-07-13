@@ -20,14 +20,14 @@
 
   /**
    * Modernized SAM Utilities
-   * 
+   *
    * Note: Many functions have been replaced with native JavaScript features:
    * - O() → optional chaining (?.) and nullish coalescing (??)
    * - A() → optional chaining (?.) and nullish coalescing (??)
    * - S() → optional chaining (?.) and nullish coalescing (??)
    * - F() → nullish coalescing (??)
    * - E() → nullish checks (!= null) for simple cases
-   * 
+   *
    * The remaining functions provide specialized functionality beyond
    * what native optional chaining offers.
    */
@@ -48,7 +48,7 @@
   /**
    * Standardized error handling for SAM
    * Creates a consistent error object that can be used across the system
-   * 
+   *
    * @param {Error|string} error - The error to standardize
    * @param {string} [context] - Optional context for the error
    * @param {string} [type='SAM_ERROR'] - Optional error type
@@ -76,7 +76,7 @@
   // Enhanced existence check with support for complex cases
   // This goes beyond simple nullish checks to handle:
   // - Array element existence
-  // - String substring checks  
+  // - String substring checks
   // - Object key existence with truthy values
   const e = value => Array.isArray(value) ? value.map(e).reduce(and, true) : value !== false && value !== null && value !== undefined;
   const i = (value, element) => {
@@ -91,14 +91,14 @@
 
   /**
    * Enhanced existence check - checks if value exists and optionally if element exists within value
-   * 
+   *
    * @param {*} value - The value to check
    * @param {*} [element] - Optional element to check within value
    * @returns {boolean} True if value exists and (element is undefined or element exists within value)
-   * 
+   *
    * Examples:
    * E(null) → false
-   * E(undefined) → false  
+   * E(undefined) → false
    * E(false) → false
    * E('hello') → true
    * E('hello', 'ell') → true
@@ -116,12 +116,12 @@
 
   /**
    * Chainable conditional executor - executes function if value is truthy
-   * 
+   *
    * @param {*} value - Value to check
    * @param {Function} f - Function to execute if value is truthy
    * @param {boolean} [guard=true] - Optional guard condition
    * @returns {Object} Chainable object with .on method
-   * 
+   *
    * Example:
    * on(user.loggedIn, () => console.log('Welcome'))
    *   .on(user.isAdmin, () => console.log('Admin access'))
@@ -135,7 +135,7 @@
   /**
    * Chainable conditional executor - executes function if value is truthy
    * Continues chain regardless of execution
-   * 
+   *
    * @param {*} value - Value to check
    * @param {Function} f - Function to execute if value is truthy
    * @param {boolean} [guard=true] - Optional guard condition
@@ -833,7 +833,9 @@
         keyed: acceptorRegistry.keyed.slice(),
         broadcast: acceptorRegistry.broadcast
       },
-      modelShape: modelShape ? Object.assign({}, modelShape) : null
+      modelShape: modelShape ? {
+        ...modelShape
+      } : null
     });
     const mount = (arr = [], elements = [], operand = sealedModel) => elements.map(el => arr.push(el(operand)));
     let intents;
@@ -1247,7 +1249,10 @@
           travelTo = history.travel(travel.index);
         }
       }
-      renderView(Object.assign({}, model, travelTo));
+      renderView({
+        ...model,
+        ...travelTo
+      });
     };
     const setCheck = ({
       begin = {},
@@ -1309,7 +1314,9 @@
         lastStep,
         manifest,
         validate,
-        namedIntents: () => Object.assign({}, registeredIntents),
+        namedIntents: () => ({
+          ...registeredIntents
+        }),
         dispose: () => synchronize && queue.clear()
       };
     };
