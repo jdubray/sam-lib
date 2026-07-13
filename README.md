@@ -31,6 +31,18 @@ The `sam-pattern` library is implemented following SAM's own principles.
 
 The pattern was first introduced in June 2015 as [STAR](https://github.com/jdubray/sam-samples/tree/master/star-java) and then in its [final form](https://www.infoq.com/articles/no-more-mvc-frameworks/) in February 2016.
 
+## v2 — the Strict Profile
+
+Version 2.0 introduces an opt-in **strict profile** (`createInstance({ strict: true })`) that moves SAM's conventions into enforced construction, making specifications mechanically checkable — explorable, transpilable (e.g. to TLA+), replayable, and locally repairable:
+
+- **Named intents with payload schemas** — a proposal missing a required field throws on first fire instead of producing a silent no-op machine ([#20](https://github.com/jdubray/sam-lib/issues/20))
+- **Declared, sealed model shape** (SAM's `VARIABLES`) — hidden bookkeeping state (`model._votes`) is a `SamShapeError`; `getState()`/`setState()` round-trip totally over the declared shape ([#21](https://github.com/jdubray/sam-lib/issues/21))
+- **First-class `reject(reason)`** — every no-op step is classifiable as `rejected | unhandled | identity-by-mutation` via `lastStep()` ([#22](https://github.com/jdubray/sam-lib/issues/22))
+- **Per-action acceptor registration** — the framework binds acceptors to actions; the switch-dispatch monolith is inexpressible ([#23](https://github.com/jdubray/sam-lib/issues/23))
+- **Per-intent input domains** (SAM's `CONSTANTS`) — the model checker explores a declared spec with zero harness-side configuration; `validate()` reports undeclared obligations ([#24](https://github.com/jdubray/sam-lib/issues/24))
+
+All v1 APIs work unchanged. See [docs/MIGRATION.md](docs/MIGRATION.md) for the step-by-step guide and [docs/V2-PLAN.md](docs/V2-PLAN.md) for the design rationale (distilled from a three-study comparison of SAM and TLA+).
+
 ## Code Samples
 
 TODOMVC
