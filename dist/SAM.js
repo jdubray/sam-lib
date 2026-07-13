@@ -433,6 +433,23 @@
   }
 
   /**
+   * Error thrown (strict mode) when a model write violates the declared model
+   * shape (issue #21): undeclared key, type mismatch, or non-nullable null.
+   */
+  class SamShapeError extends Error {
+    /**
+     * @param {string} key - the offending model key
+     * @param {string} violation - human-readable violation description
+     */
+    constructor(key, violation) {
+      super("Invalid model write: ".concat(violation));
+      this.name = 'SamShapeError';
+      this.key = key;
+      this.violation = violation;
+    }
+  }
+
+  /**
    * Returns the schema-level type of a value: 'array', 'null', or typeof.
    * @param {*} value
    * @returns {string}
@@ -488,6 +505,33 @@
   };
 
   /**
+   * Checks a single model write against a declared model shape.
+   *
+   * A shape maps model keys to `{ type, nullable, derived, internal }`:
+   * - `type`/`nullable`: as in payload schemas
+   * - `derived`: computed by reactors rather than accepted from proposals
+   * - `internal`: visible to tooling but excluded from getState snapshots
+   *
+   * @param {Object} shape - the declared model shape
+   * @param {string} key - the model key being written
+   * @param {*} value - the value being written
+   * @returns {string|null} a violation description, or null when the write is legal
+   */
+  const checkShapeWrite = (shape, key, value) => {
+    const spec = shape[key];
+    if (spec === undefined) {
+      return "undeclared model key '".concat(key, "' (declare it in modelShape, or mark it internal)");
+    }
+    if (value === null || value === undefined) {
+      return spec.nullable ? null : "key '".concat(key, "' set to ").concat(value, " but not declared nullable");
+    }
+    if (spec.type && typeOf(value) !== spec.type) {
+      return "key '".concat(key, "' expected type '").concat(spec.type, "', got '").concat(typeOf(value), "'");
+    }
+    return null;
+  };
+
+  /**
    * Validates a proposal against an intent's schema and applies the strict-profile
    * policy: throw in strict mode, warn in default mode.
    *
@@ -535,6 +579,13 @@
   };
   const react = r => r();
   const accept = proposal => async a => a(proposal);
+  // synchronous variant so acceptor exceptions (e.g. SamShapeError) propagate to
+  // the intent instead of becoming unhandled rejections
+  const acceptSync = proposal => a => a(proposal);
+
+  // errors the strict profile lets propagate to the intent caller rather than
+  // converting to an __error proposal
+  const isStrictError = err => err.name === 'SamSchemaError' || err.name === 'SamShapeError';
 
   // v2 (#20): named intents — component.actions may be an object map of
   // name -> action | { action, schema, domain }. Normalizes to an array of
@@ -578,7 +629,76 @@
     // SAM's internal model
     let history;
     const model = new Model(instanceName);
-    const mount = (arr = [], elements = [], operand = model) => elements.map(el => arr.push(el(operand)));
+
+    // v2 (#21): declared, sealed model shape — SAM's VARIABLES
+    let modelShape = null;
+    const stepMutations = new Set();
+
+    // strict mode hands acceptors/reactors/naps a sealed view of the model:
+    // writes to undeclared or ill-typed keys throw SamShapeError; framework
+    // internals (__-prefixed) are exempt. Also records per-step mutations.
+    const sealedModel = strict ? new Proxy(model, {
+      set(target, prop, value) {
+        if (modelShape && typeof prop === 'string' && prop.indexOf('__') !== 0) {
+          const violation = checkShapeWrite(modelShape, prop, value);
+          if (violation) {
+            throw new SamShapeError(prop, violation);
+          }
+          if (target[prop] !== value) {
+            stepMutations.add(prop);
+          }
+        }
+        target[prop] = value;
+        return true;
+      },
+      deleteProperty(target, prop) {
+        if (modelShape && typeof prop === 'string' && prop.indexOf('__') !== 0) {
+          stepMutations.add(prop);
+        }
+        delete target[prop];
+        return true;
+      }
+    }) : model;
+    const registerModelShape = shape => {
+      modelShape = Object.assign(modelShape !== null && modelShape !== void 0 ? modelShape : {}, shape);
+      // validate the current observable state against the declared shape
+      Object.keys(model).filter(key => key.indexOf('__') !== 0).forEach(key => {
+        const violation = checkShapeWrite(modelShape, key, model[key]);
+        if (violation) {
+          if (strict) {
+            throw new SamShapeError(key, violation);
+          }
+          console.warn("SAM: model shape violation: ".concat(violation));
+        }
+      });
+    };
+    const observableKeys = () => modelShape ? Object.keys(modelShape).filter(key => !modelShape[key].internal) : Object.keys(model).filter(key => key.indexOf('__') !== 0);
+    const getState = () => {
+      const snapshot = {};
+      observableKeys().forEach(key => {
+        if (model[key] !== undefined) {
+          snapshot[key] = model[key] === null ? null : JSON.parse(JSON.stringify(model[key]));
+        }
+      });
+      return snapshot;
+    };
+    const setState = (snapshot = {}) => {
+      Object.keys(snapshot).forEach(key => {
+        if (strict && modelShape) {
+          const violation = checkShapeWrite(modelShape, key, snapshot[key]);
+          if (violation) {
+            throw new SamShapeError(key, violation);
+          }
+        }
+        model[key] = snapshot[key] === null || snapshot[key] === undefined ? snapshot[key] : JSON.parse(JSON.stringify(snapshot[key]));
+      });
+    };
+
+    // v2 (#21/#22): per-step observability — Phase 3 adds rejections
+    const lastStep = () => ({
+      mutations: Array.from(stepMutations)
+    });
+    const mount = (arr = [], elements = [], operand = sealedModel) => elements.map(el => arr.push(el(operand)));
     let intents;
     const acceptors = [({
       __error
@@ -614,13 +734,12 @@
         }
         model.renderNextTime();
       } catch (err) {
-        if (err.name !== 'AssertionError') {
-          setTimeout(() => present({
-            __error: err
-          }), 0);
-        } else {
+        if (err.name === 'AssertionError' || isStrictError(err)) {
           throw err;
         }
+        setTimeout(() => present({
+          __error: err
+        }), 0);
       }
     };
     const storeBehavior = proposal => {
@@ -667,6 +786,7 @@
     };
     let present = synchronize ? async (proposal, resolve) => {
       if (checkForOutOfOrder(proposal)) {
+        stepMutations.clear();
         model.resetEventQueue();
         // accept proposal
         await Promise.all(acceptors.map(await accept(proposal)));
@@ -678,8 +798,9 @@
       }
     } : (proposal, resolve) => {
       if (checkForOutOfOrder(proposal)) {
-        // accept proposal
-        acceptors.forEach(accept(proposal));
+        stepMutations.clear();
+        // accept proposal (synchronously, so strict-profile errors propagate)
+        acceptors.forEach(acceptSync(proposal));
         storeBehavior(proposal);
 
         // Continue to state representation
@@ -739,6 +860,11 @@
         retry.retryDelay = N(retry.retryDelay);
       }
       const debounceDelay = debounce;
+
+      // v2 (#21): declared model shape
+      if (component.modelShape) {
+        registerModelShape(component.modelShape);
+      }
 
       // Add component's private state
       acceptLocalState(component);
@@ -821,13 +947,12 @@
                 }
               } catch (err) {
                 // uncaught exception in an acceptor
-                if (err.name !== 'AssertionError') {
-                  present({
-                    __error: err
-                  });
-                } else {
+                if (err.name === 'AssertionError' || isStrictError(err)) {
                   throw err;
                 }
+                present({
+                  __error: err
+                });
               }
               if (watchForNoop) {
                 if (display(model) === beforeSnapshot) {
@@ -868,7 +993,7 @@
               });
             }
           } catch (err) {
-            if (err.name === 'AssertionError' || err.name === 'SamSchemaError') {
+            if (err.name === 'AssertionError' || isStrictError(err)) {
               throw err;
             }
             present({
@@ -977,6 +1102,9 @@
         error: model.error(),
         intents,
         state: name => model.state(name, clone),
+        getState,
+        setState,
+        lastStep,
         dispose: () => synchronize && queue.clear()
       };
     };
@@ -1296,7 +1424,9 @@
     Model,
     // v2 strict profile
     SamSchemaError,
-    validateProposal
+    SamShapeError,
+    validateProposal,
+    checkShapeWrite
   };
 
   return index;
