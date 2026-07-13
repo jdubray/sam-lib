@@ -20,14 +20,14 @@
 
   /**
    * Modernized SAM Utilities
-   * 
+   *
    * Note: Many functions have been replaced with native JavaScript features:
    * - O() → optional chaining (?.) and nullish coalescing (??)
    * - A() → optional chaining (?.) and nullish coalescing (??)
    * - S() → optional chaining (?.) and nullish coalescing (??)
    * - F() → nullish coalescing (??)
    * - E() → nullish checks (!= null) for simple cases
-   * 
+   *
    * The remaining functions provide specialized functionality beyond
    * what native optional chaining offers.
    */
@@ -48,7 +48,7 @@
   /**
    * Standardized error handling for SAM
    * Creates a consistent error object that can be used across the system
-   * 
+   *
    * @param {Error|string} error - The error to standardize
    * @param {string} [context] - Optional context for the error
    * @param {string} [type='SAM_ERROR'] - Optional error type
@@ -76,7 +76,7 @@
   // Enhanced existence check with support for complex cases
   // This goes beyond simple nullish checks to handle:
   // - Array element existence
-  // - String substring checks  
+  // - String substring checks
   // - Object key existence with truthy values
   const e = value => Array.isArray(value) ? value.map(e).reduce(and, true) : value !== false && value !== null && value !== undefined;
   const i = (value, element) => {
@@ -91,14 +91,14 @@
 
   /**
    * Enhanced existence check - checks if value exists and optionally if element exists within value
-   * 
+   *
    * @param {*} value - The value to check
    * @param {*} [element] - Optional element to check within value
    * @returns {boolean} True if value exists and (element is undefined or element exists within value)
-   * 
+   *
    * Examples:
    * E(null) → false
-   * E(undefined) → false  
+   * E(undefined) → false
    * E(false) → false
    * E('hello') → true
    * E('hello', 'ell') → true
@@ -116,12 +116,12 @@
 
   /**
    * Chainable conditional executor - executes function if value is truthy
-   * 
+   *
    * @param {*} value - Value to check
    * @param {Function} f - Function to execute if value is truthy
    * @param {boolean} [guard=true] - Optional guard condition
    * @returns {Object} Chainable object with .on method
-   * 
+   *
    * Example:
    * on(user.loggedIn, () => console.log('Welcome'))
    *   .on(user.isAdmin, () => console.log('Admin access'))
@@ -135,7 +135,7 @@
   /**
    * Chainable conditional executor - executes function if value is truthy
    * Continues chain regardless of execution
-   * 
+   *
    * @param {*} value - Value to check
    * @param {Function} f - Function to execute if value is truthy
    * @param {boolean} [guard=true] - Optional guard condition
@@ -667,12 +667,20 @@
         });
       }
     };
+
+    // shallow write tracking cannot see in-place nested mutations
+    // (model.nodes[k].field = v); a strict-mode snapshot comparison catches
+    // them so they classify as mutated (deep) instead of a false "unhandled"
+    let stepBeforeSnapshot;
+    let stepDeepChange = false;
     const beginStep = proposal => {
       var _proposal$__actionNam;
       currentIntentName = (_proposal$__actionNam = proposal.__actionName) !== null && _proposal$__actionNam !== void 0 ? _proposal$__actionNam : null;
       stepMutations.clear();
       stepWrites.clear();
       stepRejections.length = 0;
+      stepDeepChange = false;
+      stepBeforeSnapshot = strict && currentIntentName != null ? display(model) : undefined;
     };
 
     // strict mode hands acceptors/reactors/naps a sealed view of the model:
@@ -748,7 +756,7 @@
       let classification = 'unhandled';
       if (rejections.length > 0) {
         classification = 'rejected';
-      } else if (mutations.length > 0) {
+      } else if (mutations.length > 0 || stepDeepChange) {
         classification = 'mutated';
       } else if (writes.length > 0) {
         classification = 'identity-by-mutation';
@@ -758,10 +766,14 @@
         mutations,
         writes,
         rejections,
-        classification
+        classification,
+        deep: stepDeepChange
       };
     };
     const endStep = () => {
+      if (stepBeforeSnapshot !== undefined && stepMutations.size === 0 && stepRejections.length === 0) {
+        stepDeepChange = display(model) !== stepBeforeSnapshot;
+      }
       const step = lastStep();
       if (devWarnings && strict && step.intent != null && step.classification === 'unhandled') {
         console.warn("SAM: unhandled proposal \u2014 intent '".concat(step.intent, "' fired but no acceptor mutated the model or rejected the proposal"));
@@ -821,7 +833,9 @@
         keyed: acceptorRegistry.keyed.slice(),
         broadcast: acceptorRegistry.broadcast
       },
-      modelShape: modelShape ? Object.assign({}, modelShape) : null
+      modelShape: modelShape ? {
+        ...modelShape
+      } : null
     });
     const mount = (arr = [], elements = [], operand = sealedModel) => elements.map(el => arr.push(el(operand)));
     let intents;
@@ -1235,7 +1249,10 @@
           travelTo = history.travel(travel.index);
         }
       }
-      renderView(Object.assign({}, model, travelTo));
+      renderView({
+        ...model,
+        ...travelTo
+      });
     };
     const setCheck = ({
       begin = {},
@@ -1297,7 +1314,9 @@
         lastStep,
         manifest,
         validate,
-        namedIntents: () => Object.assign({}, registeredIntents),
+        namedIntents: () => ({
+          ...registeredIntents
+        }),
         dispose: () => synchronize && queue.clear()
       };
     };
