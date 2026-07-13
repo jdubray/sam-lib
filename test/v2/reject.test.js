@@ -167,6 +167,66 @@ describe('v2 — first-class reject(reason): observable enabledness (#22)', () =
     })
   })
 
+  describe('deep (in-place) mutations', () => {
+    // SysMoBench S2 finding: mutating model.nodes[k].field in place changes
+    // state but is invisible to the shallow write tracker — it must classify
+    // as mutated (deep), not as a false "unhandled proposal"
+    it('should classify an in-place nested mutation as mutated, not unhandled', async () => {
+      const instance = createInstance({ strict: true, instanceName: 'v2deep' })
+      const { intents } = instance({
+        initialState: { nodes: { n1: { term: 0 }, n2: { term: 0 } } },
+        component: {
+          modelShape: { nodes: { type: 'object' } },
+          actions: {
+            BumpTerm: {
+              action: node => ({ node }),
+              schema: { node: { type: 'string', required: true } }
+            }
+          },
+          acceptors: {
+            BumpTerm: model => ({ node }) => {
+              model.nodes[node].term += 1 // in-place: no top-level write
+            }
+          }
+        }
+      })
+
+      const warn = stubWarn()
+      try {
+        await intents.BumpTerm('n1')
+      } finally {
+        warn.restore()
+      }
+      const step = instance({}).lastStep()
+      expect(step.classification).to.equal('mutated')
+      expect(step.deep).to.be.true
+      expect(step.mutations).to.deep.equal([])
+      expect(warn.messages.join(' ')).to.not.include('unhandled proposal')
+      expect(instance({}).getState().nodes.n1.term).to.equal(1)
+    })
+
+    it('should still classify a true no-op as unhandled', async () => {
+      const instance = createInstance({ strict: true, instanceName: 'v2deepNoop' })
+      const { intents } = instance({
+        initialState: { nodes: { n1: { term: 0 } } },
+        component: {
+          modelShape: { nodes: { type: 'object' } },
+          actions: { Noop: () => ({ noop: true }) },
+          acceptors: { Noop: () => () => null }
+        }
+      })
+      const warn = stubWarn()
+      try {
+        await intents.Noop()
+      } finally {
+        warn.restore()
+      }
+      expect(instance({}).lastStep().classification).to.equal('unhandled')
+      expect(instance({}).lastStep().deep).to.not.be.true
+      expect(warn.messages.join(' ')).to.include('unhandled proposal')
+    })
+  })
+
   describe('v1 compatibility', () => {
     it('should leave single-argument acceptors untouched', async () => {
       const instance = createInstance({ instanceName: 'v2rejectV1' })

@@ -667,12 +667,20 @@
         });
       }
     };
+
+    // shallow write tracking cannot see in-place nested mutations
+    // (model.nodes[k].field = v); a strict-mode snapshot comparison catches
+    // them so they classify as mutated (deep) instead of a false "unhandled"
+    let stepBeforeSnapshot;
+    let stepDeepChange = false;
     const beginStep = proposal => {
       var _proposal$__actionNam;
       currentIntentName = (_proposal$__actionNam = proposal.__actionName) !== null && _proposal$__actionNam !== void 0 ? _proposal$__actionNam : null;
       stepMutations.clear();
       stepWrites.clear();
       stepRejections.length = 0;
+      stepDeepChange = false;
+      stepBeforeSnapshot = strict && currentIntentName != null ? display(model) : undefined;
     };
 
     // strict mode hands acceptors/reactors/naps a sealed view of the model:
@@ -748,7 +756,7 @@
       let classification = 'unhandled';
       if (rejections.length > 0) {
         classification = 'rejected';
-      } else if (mutations.length > 0) {
+      } else if (mutations.length > 0 || stepDeepChange) {
         classification = 'mutated';
       } else if (writes.length > 0) {
         classification = 'identity-by-mutation';
@@ -758,10 +766,14 @@
         mutations,
         writes,
         rejections,
-        classification
+        classification,
+        deep: stepDeepChange
       };
     };
     const endStep = () => {
+      if (stepBeforeSnapshot !== undefined && stepMutations.size === 0 && stepRejections.length === 0) {
+        stepDeepChange = display(model) !== stepBeforeSnapshot;
+      }
       const step = lastStep();
       if (devWarnings && strict && step.intent != null && step.classification === 'unhandled') {
         console.warn("SAM: unhandled proposal \u2014 intent '".concat(step.intent, "' fired but no acceptor mutated the model or rejected the proposal"));

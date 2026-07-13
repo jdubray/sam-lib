@@ -147,6 +147,21 @@ External tools (explorers, transpilers, linters) read everything off the instanc
 | `validate()` | undeclared obligations (throws in strict mode) |
 | `instance({ stepListener })` | per-step callback for replay/exploration harnesses |
 
+## Mutation style: prefer top-level replacement
+
+The strict-mode write tracker is **shallow**: it sees writes to the model's declared keys, not in-place mutations nested inside them. Both styles work, but they differ in observability:
+
+```js
+// precise: lastStep().mutations === ['nodes'] — key-attributed
+model.nodes = { ...model.nodes, [k]: { ...model.nodes[k], term: t } }
+
+// detected, not attributed: lastStep() reports mutated with deep: true,
+// mutations: [] — a snapshot comparison catches the change (since 2.0.0-alpha.1)
+model.nodes[k].term = t
+```
+
+In-place nested mutations are never misreported as "unhandled proposal" (a false warning fixed in alpha.1, found by the SysMoBench S2 reference spec), but tools that consume per-key mutation lists — diff views, selective re-render, transpilers — only see the replacement style. Prefer top-level replacement in strict specs; treat `deep: true` steps as "something inside a declared key changed".
+
 ## Behavior changes in 2.0 (all modes)
 
 One intentional fix: in non-synchronized instances, acceptors are now invoked synchronously, so an exception thrown inside an acceptor is caught and routed to the `__error` slot (as originally documented) instead of becoming an unhandled promise rejection. Strict-profile errors (`SamSchemaError`, `SamShapeError`) propagate to the intent caller rather than landing in `__error`.
