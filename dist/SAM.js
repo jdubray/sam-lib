@@ -398,6 +398,179 @@
   }
 
   // ISC License (ISC)
+  // Copyright 2026 Jean-Jacques Dubray
+
+  // Permission to use, copy, modify, and/or distribute this software for any purpose
+  // with or without fee is hereby granted, provided that the above copyright notice
+  // and this permission notice appear in all copies.
+
+  // THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+  // REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+  // FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT,
+  // OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+  // OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+  // ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+  // SAM v2 strict profile (issue #20): named intents with declared payload schemas.
+  // Turns the dropped-payload wiring bug — a valid, silently no-oping spec in v1 —
+  // into a throw (strict mode) or a loud warning (default mode) on first fire.
+
+  /**
+   * Error thrown (strict mode) when a proposal violates its intent's declared
+   * payload schema.
+   */
+  class SamSchemaError extends Error {
+    /**
+     * @param {string} intentName - name of the intent whose proposal is invalid
+     * @param {string[]} violations - human-readable violation descriptions
+     */
+    constructor(intentName, violations = []) {
+      super("Invalid proposal for intent '".concat(intentName, "': ").concat(violations.join('; ')));
+      this.name = 'SamSchemaError';
+      this.intentName = intentName;
+      this.violations = violations;
+    }
+  }
+
+  /**
+   * Error thrown (strict mode) when a model write violates the declared model
+   * shape (issue #21): undeclared key, type mismatch, or non-nullable null.
+   */
+  class SamShapeError extends Error {
+    /**
+     * @param {string} key - the offending model key
+     * @param {string} violation - human-readable violation description
+     */
+    constructor(key, violation) {
+      super("Invalid model write: ".concat(violation));
+      this.name = 'SamShapeError';
+      this.key = key;
+      this.violation = violation;
+    }
+  }
+
+  /**
+   * Error thrown (strict mode) when instance.validate() finds obligations the
+   * spec has not declared (missing schemas, domains, or model shape).
+   */
+  class SamValidationError extends Error {
+    /**
+     * @param {string[]} problems - human-readable validation problems
+     */
+    constructor(problems = []) {
+      super("SAM spec validation failed:\n- ".concat(problems.join('\n- ')));
+      this.name = 'SamValidationError';
+      this.problems = problems;
+    }
+  }
+
+  /**
+   * Returns the schema-level type of a value: 'array', 'null', or typeof.
+   * @param {*} value
+   * @returns {string}
+   */
+  const typeOf = value => {
+    if (Array.isArray(value)) {
+      return 'array';
+    }
+    if (value === null) {
+      return 'null';
+    }
+    return typeof value;
+  };
+
+  /**
+   * Validates a proposal against a declared payload schema.
+   *
+   * A schema maps field names to `{ type, required, nullable }`:
+   * - `required`: the field must be present (not undefined)
+   * - `nullable`: null is an accepted value
+   * - `type`: one of 'string' | 'number' | 'boolean' | 'object' | 'array' | 'function'
+   *
+   * Fields absent from the schema are ignored (the sealed model shape, issue #21,
+   * owns that concern).
+   *
+   * @param {Object} schema - map of field name to field specification
+   * @param {Object} proposal - the proposal returned by the action
+   * @returns {string[]} violations, empty when the proposal is valid
+   */
+  const validateProposal = (schema = {}, proposal = {}) => {
+    const violations = [];
+    Object.keys(schema).forEach(field => {
+      var _schema$field;
+      const spec = (_schema$field = schema[field]) !== null && _schema$field !== void 0 ? _schema$field : {};
+      const value = proposal[field];
+      if (value === undefined) {
+        if (spec.required) {
+          violations.push("missing required field '".concat(field, "'"));
+        }
+        return;
+      }
+      if (value === null) {
+        if (!spec.nullable) {
+          violations.push("field '".concat(field, "' is null but not declared nullable"));
+        }
+        return;
+      }
+      if (spec.type && typeOf(value) !== spec.type) {
+        violations.push("field '".concat(field, "' expected type '").concat(spec.type, "', got '").concat(typeOf(value), "'"));
+      }
+    });
+    return violations;
+  };
+
+  /**
+   * Checks a single model write against a declared model shape.
+   *
+   * A shape maps model keys to `{ type, nullable, derived, internal }`:
+   * - `type`/`nullable`: as in payload schemas
+   * - `derived`: computed by reactors rather than accepted from proposals
+   * - `internal`: visible to tooling but excluded from getState snapshots
+   *
+   * @param {Object} shape - the declared model shape
+   * @param {string} key - the model key being written
+   * @param {*} value - the value being written
+   * @returns {string|null} a violation description, or null when the write is legal
+   */
+  const checkShapeWrite = (shape, key, value) => {
+    const spec = shape[key];
+    if (spec === undefined) {
+      return "undeclared model key '".concat(key, "' (declare it in modelShape, or mark it internal)");
+    }
+    if (value === null || value === undefined) {
+      return spec.nullable ? null : "key '".concat(key, "' set to ").concat(value, " but not declared nullable");
+    }
+    if (spec.type && typeOf(value) !== spec.type) {
+      return "key '".concat(key, "' expected type '").concat(spec.type, "', got '").concat(typeOf(value), "'");
+    }
+    return null;
+  };
+
+  /**
+   * Validates a proposal against an intent's schema and applies the strict-profile
+   * policy: throw in strict mode, warn in default mode.
+   *
+   * @param {string} intentName
+   * @param {Object|undefined} schema - the intent's declared payload schema
+   * @param {Object} proposal
+   * @param {boolean} strict
+   * @throws {SamSchemaError} in strict mode when the proposal is invalid
+   */
+  const enforceProposalSchema = (intentName, schema, proposal, strict) => {
+    if (!schema) {
+      return;
+    }
+    const violations = validateProposal(schema, proposal);
+    if (violations.length > 0) {
+      const error = new SamSchemaError(intentName !== null && intentName !== void 0 ? intentName : 'anonymous', violations);
+      if (strict) {
+        throw error;
+      }
+      console.warn(error.message);
+    }
+  };
+
+  // ISC License (ISC)
   // Copyright 2019 Jean-Jacques Dubray
 
 
@@ -420,7 +593,35 @@
     }).filter(val => val !== '').join(', '));
   };
   const react = r => r();
-  const accept = proposal => async a => a(proposal);
+  const accept = (proposal, stepApi) => async a => a(proposal, stepApi);
+  // synchronous variant so acceptor exceptions (e.g. SamShapeError) propagate to
+  // the intent instead of becoming unhandled rejections
+  const acceptSync = (proposal, stepApi) => a => a(proposal, stepApi);
+
+  // errors the strict profile lets propagate to the intent caller rather than
+  // converting to an __error proposal
+  const isStrictError = err => err.name === 'SamSchemaError' || err.name === 'SamShapeError';
+
+  // v2 (#20): named intents — component.actions may be an object map of
+  // name -> action | { action, schema, domain }. Normalizes to an array of
+  // decorated action functions; returns undefined for the v1 array form.
+  const normalizeNamedActions = actions => {
+    if (actions == null || Array.isArray(actions) || typeof actions !== 'object') {
+      return undefined;
+    }
+    return Object.entries(actions).map(([name, definition]) => {
+      const action = typeof definition === 'function' ? definition : definition.action;
+      if (typeof action !== 'function') {
+        throw new Error("SAM: intent '".concat(name, "' must declare an action function"));
+      }
+      action.__actionName = name;
+      if (typeof definition !== 'function') {
+        action.__schema = definition.schema;
+        action.__domain = definition.domain;
+      }
+      return action;
+    });
+  };
   function createInstance (options = {}) {
     var _options$timetravel;
     const {
@@ -431,7 +632,10 @@
       instanceName = 'global',
       synchronize = false,
       clone = false,
-      requestStateRepresentation
+      requestStateRepresentation,
+      strict = false,
+      devWarnings = strict,
+      neverEnabledThreshold = 3
     } = options;
     const {
       synchronizeInterval = 5
@@ -440,7 +644,186 @@
     // SAM's internal model
     let history;
     const model = new Model(instanceName);
-    const mount = (arr = [], elements = [], operand = model) => elements.map(el => arr.push(el(operand)));
+
+    // v2 (#21): declared, sealed model shape — SAM's VARIABLES
+    let modelShape = null;
+    const stepMutations = new Set();
+
+    // v2 (#22): per-step enabledness observability
+    const stepWrites = new Set();
+    const stepRejections = [];
+    let currentIntentName = null;
+    let stepListener = null;
+    const stepApi = {
+      /**
+       * Records an explicit, observable rejection of the current proposal —
+       * distinct from silent fall-through and from the __error slot.
+       * @param {string} reason - why the acceptor rejected the proposal
+       */
+      reject: reason => {
+        stepRejections.push({
+          intent: currentIntentName,
+          reason
+        });
+      }
+    };
+    const beginStep = proposal => {
+      var _proposal$__actionNam;
+      currentIntentName = (_proposal$__actionNam = proposal.__actionName) !== null && _proposal$__actionNam !== void 0 ? _proposal$__actionNam : null;
+      stepMutations.clear();
+      stepWrites.clear();
+      stepRejections.length = 0;
+    };
+
+    // strict mode hands acceptors/reactors/naps a sealed view of the model:
+    // writes to undeclared or ill-typed keys throw SamShapeError; framework
+    // internals (__-prefixed) are exempt. Also records per-step mutations.
+    const sealedModel = strict ? new Proxy(model, {
+      set(target, prop, value) {
+        if (typeof prop === 'string' && prop.indexOf('__') !== 0) {
+          if (modelShape) {
+            const violation = checkShapeWrite(modelShape, prop, value);
+            if (violation) {
+              throw new SamShapeError(prop, violation);
+            }
+          }
+          stepWrites.add(prop);
+          if (target[prop] !== value) {
+            stepMutations.add(prop);
+          }
+        }
+        target[prop] = value;
+        return true;
+      },
+      deleteProperty(target, prop) {
+        if (typeof prop === 'string' && prop.indexOf('__') !== 0) {
+          stepWrites.add(prop);
+          stepMutations.add(prop);
+        }
+        delete target[prop];
+        return true;
+      }
+    }) : model;
+    const registerModelShape = shape => {
+      modelShape = Object.assign(modelShape !== null && modelShape !== void 0 ? modelShape : {}, shape);
+      // validate the current observable state against the declared shape
+      Object.keys(model).filter(key => key.indexOf('__') !== 0).forEach(key => {
+        const violation = checkShapeWrite(modelShape, key, model[key]);
+        if (violation) {
+          if (strict) {
+            throw new SamShapeError(key, violation);
+          }
+          console.warn("SAM: model shape violation: ".concat(violation));
+        }
+      });
+    };
+    const observableKeys = () => modelShape ? Object.keys(modelShape).filter(key => !modelShape[key].internal) : Object.keys(model).filter(key => key.indexOf('__') !== 0);
+    const getState = () => {
+      const snapshot = {};
+      observableKeys().forEach(key => {
+        if (model[key] !== undefined) {
+          snapshot[key] = model[key] === null ? null : JSON.parse(JSON.stringify(model[key]));
+        }
+      });
+      return snapshot;
+    };
+    const setState = (snapshot = {}) => {
+      Object.keys(snapshot).forEach(key => {
+        if (strict && modelShape) {
+          const violation = checkShapeWrite(modelShape, key, snapshot[key]);
+          if (violation) {
+            throw new SamShapeError(key, violation);
+          }
+        }
+        model[key] = snapshot[key] === null || snapshot[key] === undefined ? snapshot[key] : JSON.parse(JSON.stringify(snapshot[key]));
+      });
+    };
+
+    // v2 (#21/#22): per-step observability — every no-op step is mechanically
+    // classifiable as rejected | unhandled | identity-by-mutation
+    const lastStep = () => {
+      const rejections = stepRejections.slice();
+      const mutations = Array.from(stepMutations);
+      const writes = Array.from(stepWrites);
+      let classification = 'unhandled';
+      if (rejections.length > 0) {
+        classification = 'rejected';
+      } else if (mutations.length > 0) {
+        classification = 'mutated';
+      } else if (writes.length > 0) {
+        classification = 'identity-by-mutation';
+      }
+      return {
+        intent: currentIntentName,
+        mutations,
+        writes,
+        rejections,
+        classification
+      };
+    };
+    const endStep = () => {
+      const step = lastStep();
+      if (devWarnings && strict && step.intent != null && step.classification === 'unhandled') {
+        console.warn("SAM: unhandled proposal \u2014 intent '".concat(step.intent, "' fired but no acceptor mutated the model or rejected the proposal"));
+      }
+      stepListener && stepListener(step);
+    };
+
+    // v2 (#23/#24): structural registry — external tools (explorer, transpiler,
+    // linter) recover intents, schemas, domains, acceptor bindings and the model
+    // shape from the instance instead of parsing code or side-channel manifests
+    const intentRegistry = {};
+    const acceptorRegistry = {
+      keyed: [],
+      broadcast: 0
+    };
+    // named intent functions survive across instance calls so tools (e.g. the
+    // checker) can drive the spec without a side-channel intent list
+    const registeredIntents = {};
+
+    // v2 (#24): validates that every declared obligation is present — the
+    // strict analog of TLC refusing to run without CONSTANTS
+    const validate = () => {
+      const problems = [];
+      const names = Object.keys(intentRegistry);
+      if (names.length === 0) {
+        problems.push('no named intents registered');
+      }
+      names.forEach(name => {
+        const {
+          schema,
+          domain
+        } = intentRegistry[name];
+        if (!schema) {
+          problems.push("intent '".concat(name, "' has no payload schema"));
+        }
+        if (domain == null) {
+          problems.push("intent '".concat(name, "' has no input domain"));
+        }
+      });
+      if (!modelShape) {
+        problems.push('no modelShape declared');
+      }
+      if (strict && problems.length > 0) {
+        throw new SamValidationError(problems);
+      }
+      return problems;
+    };
+    const manifest = () => ({
+      intents: Object.keys(intentRegistry).reduce((acc, name) => {
+        acc[name] = {
+          schema: intentRegistry[name].schema,
+          domain: intentRegistry[name].domain
+        };
+        return acc;
+      }, {}),
+      acceptors: {
+        keyed: acceptorRegistry.keyed.slice(),
+        broadcast: acceptorRegistry.broadcast
+      },
+      modelShape: modelShape ? Object.assign({}, modelShape) : null
+    });
+    const mount = (arr = [], elements = [], operand = sealedModel) => elements.map(el => arr.push(el(operand)));
     let intents;
     const acceptors = [({
       __error
@@ -476,13 +859,12 @@
         }
         model.renderNextTime();
       } catch (err) {
-        if (err.name !== 'AssertionError') {
-          setTimeout(() => present({
-            __error: err
-          }), 0);
-        } else {
+        if (err.name === 'AssertionError' || isStrictError(err)) {
           throw err;
         }
+        setTimeout(() => present({
+          __error: err
+        }), 0);
       }
     };
     const storeBehavior = proposal => {
@@ -529,10 +911,12 @@
     };
     let present = synchronize ? async (proposal, resolve) => {
       if (checkForOutOfOrder(proposal)) {
+        beginStep(proposal);
         model.resetEventQueue();
         // accept proposal
-        await Promise.all(acceptors.map(await accept(proposal)));
+        await Promise.all(acceptors.map(accept(proposal, stepApi)));
         storeBehavior(proposal);
+        endStep();
 
         // Continue to state representation
         state();
@@ -540,9 +924,11 @@
       }
     } : (proposal, resolve) => {
       if (checkForOutOfOrder(proposal)) {
-        // accept proposal
-        acceptors.forEach(accept(proposal));
+        beginStep(proposal);
+        // accept proposal (synchronously, so strict-profile errors propagate)
+        acceptors.forEach(acceptSync(proposal, stepApi));
         storeBehavior(proposal);
+        endStep();
 
         // Continue to state representation
         state();
@@ -602,6 +988,11 @@
       }
       const debounceDelay = debounce;
 
+      // v2 (#21): declared model shape
+      if (component.modelShape) {
+        registerModelShape(component.modelShape);
+      }
+
       // Add component's private state
       acceptLocalState(component);
 
@@ -610,12 +1001,41 @@
         intents.length = 0;
       }
 
+      // v2 (#20): named intent registration (object map) normalizes to an array;
+      // undefined means the v1 positional array form
+      const namedActions = normalizeNamedActions(component.actions);
+      const actionList = namedActions !== null && namedActions !== void 0 ? namedActions : component.actions;
+      let intentList;
+      if (namedActions) {
+        namedActions.forEach(action => {
+          const {
+            __actionName: name,
+            __schema: schema,
+            __domain: domain
+          } = action;
+          // v2 (#24): payload-object domain entries are schema-validated at
+          // declaration time (argument-style entries are validated on fire)
+          if (schema && Array.isArray(domain)) {
+            domain.forEach(entry => {
+              if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+                enforceProposalSchema(name, schema, entry, strict);
+              }
+            });
+          }
+          intentRegistry[name] = {
+            schema,
+            domain
+          };
+        });
+      }
+
       // Decorate actions to present proposal to the model
       if (hasAsyncActions) {
-        var _component$actions;
-        intents = (_component$actions = component.actions) === null || _component$actions === void 0 ? void 0 : _component$actions.map(action => {
+        intentList = actionList === null || actionList === void 0 ? void 0 : actionList.map(action => {
           let needsDebounce = false;
           let retryCount = 0;
+          let noopCount = 0;
+          let warnedNeverEnabled = false;
           if (typeof action === 'object') {
             const label = action.label || action[0];
             const smId = E(action) && E(action[2]) ? action[2].id : undefined;
@@ -655,9 +1075,20 @@
                   throw err;
                 }
               }
+
+              // v2 (#20): payload schema enforcement — throws SamSchemaError in
+              // strict mode, warns in default mode; error proposals bypass it
+              if (!proposal.__error) {
+                enforceProposalSchema(action.__actionName, action.__schema, proposal, strict);
+              }
               if (ignoreOutdatedProposals) {
                 proposal.__startTime = startTime;
               }
+
+              // v2 (#20): never-enabled heuristic — snapshot the observable model
+              // around present; synchronize mode queues proposals, so skip there
+              const watchForNoop = devWarnings && !synchronize && !proposal.__error;
+              const beforeSnapshot = watchForNoop ? display(model) : undefined;
               try {
                 if (isAllowed(action)) {
                   present(proposal);
@@ -665,12 +1096,26 @@
                 }
               } catch (err) {
                 // uncaught exception in an acceptor
-                if (err.name !== 'AssertionError') {
-                  present({
-                    __error: err
-                  });
-                } else {
+                if (err.name === 'AssertionError' || isStrictError(err)) {
                   throw err;
+                }
+                present({
+                  __error: err
+                });
+              }
+              if (watchForNoop) {
+                if (stepRejections.length > 0) {
+                  // an explicit rejection proves the intent is wired and guarded
+                  noopCount = 0;
+                } else if (display(model) === beforeSnapshot) {
+                  noopCount += 1;
+                  if (noopCount >= neverEnabledThreshold && !warnedNeverEnabled) {
+                    var _action$__actionName;
+                    warnedNeverEnabled = true;
+                    console.warn("SAM: intent '".concat((_action$__actionName = action.__actionName) !== null && _action$__actionName !== void 0 ? _action$__actionName : 'anonymous', "' fired ").concat(noopCount, " times without mutating the model \u2014 possibly never enabled (dropped payload or guard mismatch?)"));
+                  }
+                } else {
+                  noopCount = 0;
                 }
               }
               if (debounceDelay > 0) {
@@ -683,38 +1128,75 @@
           };
           intent.__actionName = action.__actionName;
           intent.__stateMachineId = action.__stateMachineId;
+          intent.__schema = action.__schema;
+          intent.__domain = action.__domain;
           return intent;
         });
       } else {
-        var _intents2, _component$actions2;
-        // Clean up old intents to prevent memory leaks
-        if ((_intents2 = intents) !== null && _intents2 !== void 0 && _intents2.length) {
-          intents.length = 0;
-        }
-        intents = (_component$actions2 = component.actions) === null || _component$actions2 === void 0 ? void 0 : _component$actions2.map(action => (...args) => {
-          try {
-            if (isAllowed(action)) {
-              const proposal = action(...args);
-              present(proposal);
-            } else {
-              present({
-                __error: "unexpected action ".concat(action.__actionName || '')
-              });
-            }
-          } catch (err) {
-            if (err.name !== 'AssertionError') {
+        intentList = actionList === null || actionList === void 0 ? void 0 : actionList.map(action => {
+          const intent = (...args) => {
+            try {
+              if (isAllowed(action)) {
+                const proposal = action(...args);
+                proposal.__actionName = action.__actionName;
+                enforceProposalSchema(action.__actionName, action.__schema, proposal, strict);
+                present(proposal);
+              } else {
+                present({
+                  __error: "unexpected action ".concat(action.__actionName || '')
+                });
+              }
+            } catch (err) {
+              if (err.name === 'AssertionError' || isStrictError(err)) {
+                throw err;
+              }
               present({
                 __error: err
               });
-            } else {
-              throw err;
             }
-          }
+          };
+          intent.__actionName = action.__actionName;
+          intent.__stateMachineId = action.__stateMachineId;
+          intent.__schema = action.__schema;
+          intent.__domain = action.__domain;
+          return intent;
         });
       }
 
+      // v2 (#20): named form returns intents keyed by name
+      intents = namedActions ? (intentList !== null && intentList !== void 0 ? intentList : []).reduce((acc, intent) => Object.assign(acc, {
+        [intent.__actionName]: intent
+      }), {}) : intentList;
+      if (namedActions) {
+        Object.assign(registeredIntents, intents);
+      }
+
       // Add component's acceptors,  reactors, naps and safety condition to SAM instance
-      mount(acceptors, component.acceptors, component.localState);
+      if (component.acceptors && !Array.isArray(component.acceptors) && typeof component.acceptors === 'object') {
+        // v2 (#23): keyed acceptor registration — the framework binds each
+        // acceptor to its action, so acceptor bodies contain only guards and
+        // mutations; the switch-dispatch monolith is inexpressible in this form
+        Object.keys(component.acceptors).forEach(key => {
+          const acceptorFactory = component.acceptors[key];
+          if (key === '*') {
+            // explicitly-marked cross-cutting (broadcast) acceptor
+            acceptorRegistry.broadcast += 1;
+            mount(acceptors, [acceptorFactory], component.localState);
+            return;
+          }
+          if (strict && intentRegistry[key] === undefined) {
+            throw new Error("SAM: keyed acceptor '".concat(key, "' does not match any registered intent (declare the intent first, or use '*' for cross-cutting acceptors)"));
+          }
+          acceptorRegistry.keyed.push(key);
+          mount(acceptors, [operand => {
+            const acceptor = acceptorFactory(operand);
+            return (proposal, api) => proposal.__actionName === key ? acceptor(proposal, api) : undefined;
+          }], component.localState);
+        });
+      } else {
+        acceptorRegistry.broadcast += A(component.acceptors).length;
+        mount(acceptors, component.acceptors, component.localState);
+      }
       mount(reactors, component.reactors, component.localState);
       mount(naps, rollback(component.safety), component.localState);
       mount(naps, component.naps, component.localState);
@@ -796,10 +1278,13 @@
       check,
       allowed,
       clearInterval,
-      event
+      event,
+      stepListener: stepListenerParam
     }) => {
       intents = [];
-      on(history, setHistory).on(initialState, addInitialState).on(component, addComponent).on(render, setRender).on(travel, timetravel).on(logger, setLogger).on(check, setCheck).on(allowed, allowedActions).on(clearInterval, () => queue.clear()).on(event, addEventHandler);
+      on(history, setHistory).on(stepListenerParam, listener => {
+        stepListener = listener;
+      }).on(initialState, addInitialState).on(component, addComponent).on(render, setRender).on(travel, timetravel).on(logger, setLogger).on(check, setCheck).on(allowed, allowedActions).on(clearInterval, () => queue.clear()).on(event, addEventHandler);
       return {
         hasNext: model.hasNext(),
         hasError: model.hasError(),
@@ -807,6 +1292,12 @@
         error: model.error(),
         intents,
         state: name => model.state(name, clone),
+        getState,
+        setState,
+        lastStep,
+        manifest,
+        validate,
+        namedIntents: () => Object.assign({}, registeredIntents),
         dispose: () => synchronize && queue.clear()
       };
     };
@@ -1004,6 +1495,27 @@
       } while (k < kmax);
     });
   };
+
+  // v2 (#24): derives the checker's intent list from the instance's named
+  // intents and their declared input domains — no harness-side configuration.
+  // Domain entries: an array spreads as intent arguments, anything else is the
+  // single argument; a function domain is a generator evaluated here.
+  const intentsFromDomains = instance => {
+    const control = instance({});
+    if (typeof control.namedIntents !== 'function') {
+      return [];
+    }
+    const named = control.namedIntents();
+    return Object.keys(named).map(name => {
+      const intent = named[name];
+      const domain = typeof intent.__domain === 'function' ? intent.__domain() : intent.__domain;
+      return {
+        name,
+        intent,
+        values: (domain !== null && domain !== void 0 ? domain : []).map(entry => Array.isArray(entry) ? entry : [entry])
+      };
+    }).filter(i => i.values.length > 0);
+  };
   const checker = ({
     instance,
     initialState = {},
@@ -1023,6 +1535,9 @@
       doNotStartWith = [],
       format
     } = options;
+    if (intents.length === 0) {
+      intents = intentsFromDomains(instance);
+    }
     const [behaviorIntent, formatIntent] = instance({
       component: {
         actions: [__behavior => ({
@@ -1123,7 +1638,13 @@
     checker,
     permutations,
     apply,
-    Model
+    Model,
+    // v2 strict profile
+    SamSchemaError,
+    SamShapeError,
+    SamValidationError,
+    validateProposal,
+    checkShapeWrite
   };
 
   return index;

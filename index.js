@@ -19,6 +19,9 @@ import {
   O, A, N, NZ, S, F, E, on, oneOf, or, and, match, step, first, doNotRender, log
 } from './lib/sam-utils'
 import { checker, permutations, apply } from './lib/sam-checker'
+import {
+  SamSchemaError, SamShapeError, SamValidationError, validateProposal, checkShapeWrite
+} from './lib/sam-strict'
 import events from './lib/sam-events'
 import Model from './lib/sam-model'
 
@@ -62,5 +65,12 @@ export default {
   checker,
   permutations,
   apply,
-  Model
+  Model,
+
+  // v2 strict profile
+  SamSchemaError,
+  SamShapeError,
+  SamValidationError,
+  validateProposal,
+  checkShapeWrite
 }
