@@ -398,6 +398,120 @@
   }
 
   // ISC License (ISC)
+  // Copyright 2026 Jean-Jacques Dubray
+
+  // Permission to use, copy, modify, and/or distribute this software for any purpose
+  // with or without fee is hereby granted, provided that the above copyright notice
+  // and this permission notice appear in all copies.
+
+  // THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+  // REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+  // FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT,
+  // OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+  // OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+  // ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+  // SAM v2 strict profile (issue #20): named intents with declared payload schemas.
+  // Turns the dropped-payload wiring bug — a valid, silently no-oping spec in v1 —
+  // into a throw (strict mode) or a loud warning (default mode) on first fire.
+
+  /**
+   * Error thrown (strict mode) when a proposal violates its intent's declared
+   * payload schema.
+   */
+  class SamSchemaError extends Error {
+    /**
+     * @param {string} intentName - name of the intent whose proposal is invalid
+     * @param {string[]} violations - human-readable violation descriptions
+     */
+    constructor(intentName, violations = []) {
+      super("Invalid proposal for intent '".concat(intentName, "': ").concat(violations.join('; ')));
+      this.name = 'SamSchemaError';
+      this.intentName = intentName;
+      this.violations = violations;
+    }
+  }
+
+  /**
+   * Returns the schema-level type of a value: 'array', 'null', or typeof.
+   * @param {*} value
+   * @returns {string}
+   */
+  const typeOf = value => {
+    if (Array.isArray(value)) {
+      return 'array';
+    }
+    if (value === null) {
+      return 'null';
+    }
+    return typeof value;
+  };
+
+  /**
+   * Validates a proposal against a declared payload schema.
+   *
+   * A schema maps field names to `{ type, required, nullable }`:
+   * - `required`: the field must be present (not undefined)
+   * - `nullable`: null is an accepted value
+   * - `type`: one of 'string' | 'number' | 'boolean' | 'object' | 'array' | 'function'
+   *
+   * Fields absent from the schema are ignored (the sealed model shape, issue #21,
+   * owns that concern).
+   *
+   * @param {Object} schema - map of field name to field specification
+   * @param {Object} proposal - the proposal returned by the action
+   * @returns {string[]} violations, empty when the proposal is valid
+   */
+  const validateProposal = (schema = {}, proposal = {}) => {
+    const violations = [];
+    Object.keys(schema).forEach(field => {
+      var _schema$field;
+      const spec = (_schema$field = schema[field]) !== null && _schema$field !== void 0 ? _schema$field : {};
+      const value = proposal[field];
+      if (value === undefined) {
+        if (spec.required) {
+          violations.push("missing required field '".concat(field, "'"));
+        }
+        return;
+      }
+      if (value === null) {
+        if (!spec.nullable) {
+          violations.push("field '".concat(field, "' is null but not declared nullable"));
+        }
+        return;
+      }
+      if (spec.type && typeOf(value) !== spec.type) {
+        violations.push("field '".concat(field, "' expected type '").concat(spec.type, "', got '").concat(typeOf(value), "'"));
+      }
+    });
+    return violations;
+  };
+
+  /**
+   * Validates a proposal against an intent's schema and applies the strict-profile
+   * policy: throw in strict mode, warn in default mode.
+   *
+   * @param {string} intentName
+   * @param {Object|undefined} schema - the intent's declared payload schema
+   * @param {Object} proposal
+   * @param {boolean} strict
+   * @throws {SamSchemaError} in strict mode when the proposal is invalid
+   */
+  const enforceProposalSchema = (intentName, schema, proposal, strict) => {
+    if (!schema) {
+      return;
+    }
+    const violations = validateProposal(schema, proposal);
+    if (violations.length > 0) {
+      const error = new SamSchemaError(intentName !== null && intentName !== void 0 ? intentName : 'anonymous', violations);
+      if (strict) {
+        throw error;
+      }
+      console.warn(error.message);
+    }
+  };
+
+  // ISC License (ISC)
   // Copyright 2019 Jean-Jacques Dubray
 
 
@@ -421,6 +535,27 @@
   };
   const react = r => r();
   const accept = proposal => async a => a(proposal);
+
+  // v2 (#20): named intents — component.actions may be an object map of
+  // name -> action | { action, schema, domain }. Normalizes to an array of
+  // decorated action functions; returns undefined for the v1 array form.
+  const normalizeNamedActions = actions => {
+    if (actions == null || Array.isArray(actions) || typeof actions !== 'object') {
+      return undefined;
+    }
+    return Object.entries(actions).map(([name, definition]) => {
+      const action = typeof definition === 'function' ? definition : definition.action;
+      if (typeof action !== 'function') {
+        throw new Error("SAM: intent '".concat(name, "' must declare an action function"));
+      }
+      action.__actionName = name;
+      if (typeof definition !== 'function') {
+        action.__schema = definition.schema;
+        action.__domain = definition.domain;
+      }
+      return action;
+    });
+  };
   function createInstance (options = {}) {
     var _options$timetravel;
     const {
@@ -431,7 +566,10 @@
       instanceName = 'global',
       synchronize = false,
       clone = false,
-      requestStateRepresentation
+      requestStateRepresentation,
+      strict = false,
+      devWarnings = strict,
+      neverEnabledThreshold = 3
     } = options;
     const {
       synchronizeInterval = 5
@@ -610,12 +748,19 @@
         intents.length = 0;
       }
 
+      // v2 (#20): named intent registration (object map) normalizes to an array;
+      // undefined means the v1 positional array form
+      const namedActions = normalizeNamedActions(component.actions);
+      const actionList = namedActions !== null && namedActions !== void 0 ? namedActions : component.actions;
+      let intentList;
+
       // Decorate actions to present proposal to the model
       if (hasAsyncActions) {
-        var _component$actions;
-        intents = (_component$actions = component.actions) === null || _component$actions === void 0 ? void 0 : _component$actions.map(action => {
+        intentList = actionList === null || actionList === void 0 ? void 0 : actionList.map(action => {
           let needsDebounce = false;
           let retryCount = 0;
+          let noopCount = 0;
+          let warnedNeverEnabled = false;
           if (typeof action === 'object') {
             const label = action.label || action[0];
             const smId = E(action) && E(action[2]) ? action[2].id : undefined;
@@ -655,9 +800,20 @@
                   throw err;
                 }
               }
+
+              // v2 (#20): payload schema enforcement — throws SamSchemaError in
+              // strict mode, warns in default mode; error proposals bypass it
+              if (!proposal.__error) {
+                enforceProposalSchema(action.__actionName, action.__schema, proposal, strict);
+              }
               if (ignoreOutdatedProposals) {
                 proposal.__startTime = startTime;
               }
+
+              // v2 (#20): never-enabled heuristic — snapshot the observable model
+              // around present; synchronize mode queues proposals, so skip there
+              const watchForNoop = devWarnings && !synchronize && !proposal.__error;
+              const beforeSnapshot = watchForNoop ? display(model) : undefined;
               try {
                 if (isAllowed(action)) {
                   present(proposal);
@@ -673,6 +829,18 @@
                   throw err;
                 }
               }
+              if (watchForNoop) {
+                if (display(model) === beforeSnapshot) {
+                  noopCount += 1;
+                  if (noopCount >= neverEnabledThreshold && !warnedNeverEnabled) {
+                    var _action$__actionName;
+                    warnedNeverEnabled = true;
+                    console.warn("SAM: intent '".concat((_action$__actionName = action.__actionName) !== null && _action$__actionName !== void 0 ? _action$__actionName : 'anonymous', "' fired ").concat(noopCount, " times without mutating the model \u2014 possibly never enabled (dropped payload or guard mismatch?)"));
+                  }
+                } else {
+                  noopCount = 0;
+                }
+              }
               if (debounceDelay > 0) {
                 needsDebounce = true;
                 setTimeout(() => intent({
@@ -683,18 +851,16 @@
           };
           intent.__actionName = action.__actionName;
           intent.__stateMachineId = action.__stateMachineId;
+          intent.__schema = action.__schema;
+          intent.__domain = action.__domain;
           return intent;
         });
       } else {
-        var _intents2, _component$actions2;
-        // Clean up old intents to prevent memory leaks
-        if ((_intents2 = intents) !== null && _intents2 !== void 0 && _intents2.length) {
-          intents.length = 0;
-        }
-        intents = (_component$actions2 = component.actions) === null || _component$actions2 === void 0 ? void 0 : _component$actions2.map(action => (...args) => {
+        intentList = actionList === null || actionList === void 0 ? void 0 : actionList.map(action => (...args) => {
           try {
             if (isAllowed(action)) {
               const proposal = action(...args);
+              enforceProposalSchema(action.__actionName, action.__schema, proposal, strict);
               present(proposal);
             } else {
               present({
@@ -702,16 +868,20 @@
               });
             }
           } catch (err) {
-            if (err.name !== 'AssertionError') {
-              present({
-                __error: err
-              });
-            } else {
+            if (err.name === 'AssertionError' || err.name === 'SamSchemaError') {
               throw err;
             }
+            present({
+              __error: err
+            });
           }
         });
       }
+
+      // v2 (#20): named form returns intents keyed by name
+      intents = namedActions ? (intentList !== null && intentList !== void 0 ? intentList : []).reduce((acc, intent) => Object.assign(acc, {
+        [intent.__actionName]: intent
+      }), {}) : intentList;
 
       // Add component's acceptors,  reactors, naps and safety condition to SAM instance
       mount(acceptors, component.acceptors, component.localState);
@@ -1123,7 +1293,10 @@
     checker,
     permutations,
     apply,
-    Model
+    Model,
+    // v2 strict profile
+    SamSchemaError,
+    validateProposal
   };
 
   return index;
