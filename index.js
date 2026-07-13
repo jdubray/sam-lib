@@ -20,7 +20,7 @@ import {
 } from './lib/sam-utils'
 import { checker, permutations, apply } from './lib/sam-checker'
 import {
-  SamSchemaError, SamShapeError, validateProposal, checkShapeWrite
+  SamSchemaError, SamShapeError, SamValidationError, validateProposal, checkShapeWrite
 } from './lib/sam-strict'
 import events from './lib/sam-events'
 import Model from './lib/sam-model'
@@ -70,6 +70,7 @@ export default {
   // v2 strict profile
   SamSchemaError,
   SamShapeError,
+  SamValidationError,
   validateProposal,
   checkShapeWrite
 }

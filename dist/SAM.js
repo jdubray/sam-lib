@@ -450,6 +450,21 @@
   }
 
   /**
+   * Error thrown (strict mode) when instance.validate() finds obligations the
+   * spec has not declared (missing schemas, domains, or model shape).
+   */
+  class SamValidationError extends Error {
+    /**
+     * @param {string[]} problems - human-readable validation problems
+     */
+    constructor(problems = []) {
+      super("SAM spec validation failed:\n- ".concat(problems.join('\n- ')));
+      this.name = 'SamValidationError';
+      this.problems = problems;
+    }
+  }
+
+  /**
    * Returns the schema-level type of a value: 'array', 'null', or typeof.
    * @param {*} value
    * @returns {string}
@@ -762,6 +777,38 @@
       keyed: [],
       broadcast: 0
     };
+    // named intent functions survive across instance calls so tools (e.g. the
+    // checker) can drive the spec without a side-channel intent list
+    const registeredIntents = {};
+
+    // v2 (#24): validates that every declared obligation is present — the
+    // strict analog of TLC refusing to run without CONSTANTS
+    const validate = () => {
+      const problems = [];
+      const names = Object.keys(intentRegistry);
+      if (names.length === 0) {
+        problems.push('no named intents registered');
+      }
+      names.forEach(name => {
+        const {
+          schema,
+          domain
+        } = intentRegistry[name];
+        if (!schema) {
+          problems.push("intent '".concat(name, "' has no payload schema"));
+        }
+        if (domain == null) {
+          problems.push("intent '".concat(name, "' has no input domain"));
+        }
+      });
+      if (!modelShape) {
+        problems.push('no modelShape declared');
+      }
+      if (strict && problems.length > 0) {
+        throw new SamValidationError(problems);
+      }
+      return problems;
+    };
     const manifest = () => ({
       intents: Object.keys(intentRegistry).reduce((acc, name) => {
         acc[name] = {
@@ -961,9 +1008,23 @@
       let intentList;
       if (namedActions) {
         namedActions.forEach(action => {
-          intentRegistry[action.__actionName] = {
-            schema: action.__schema,
-            domain: action.__domain
+          const {
+            __actionName: name,
+            __schema: schema,
+            __domain: domain
+          } = action;
+          // v2 (#24): payload-object domain entries are schema-validated at
+          // declaration time (argument-style entries are validated on fire)
+          if (schema && Array.isArray(domain)) {
+            domain.forEach(entry => {
+              if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+                enforceProposalSchema(name, schema, entry, strict);
+              }
+            });
+          }
+          intentRegistry[name] = {
+            schema,
+            domain
           };
         });
       }
@@ -1072,25 +1133,33 @@
           return intent;
         });
       } else {
-        intentList = actionList === null || actionList === void 0 ? void 0 : actionList.map(action => (...args) => {
-          try {
-            if (isAllowed(action)) {
-              const proposal = action(...args);
-              enforceProposalSchema(action.__actionName, action.__schema, proposal, strict);
-              present(proposal);
-            } else {
+        intentList = actionList === null || actionList === void 0 ? void 0 : actionList.map(action => {
+          const intent = (...args) => {
+            try {
+              if (isAllowed(action)) {
+                const proposal = action(...args);
+                proposal.__actionName = action.__actionName;
+                enforceProposalSchema(action.__actionName, action.__schema, proposal, strict);
+                present(proposal);
+              } else {
+                present({
+                  __error: "unexpected action ".concat(action.__actionName || '')
+                });
+              }
+            } catch (err) {
+              if (err.name === 'AssertionError' || isStrictError(err)) {
+                throw err;
+              }
               present({
-                __error: "unexpected action ".concat(action.__actionName || '')
+                __error: err
               });
             }
-          } catch (err) {
-            if (err.name === 'AssertionError' || isStrictError(err)) {
-              throw err;
-            }
-            present({
-              __error: err
-            });
-          }
+          };
+          intent.__actionName = action.__actionName;
+          intent.__stateMachineId = action.__stateMachineId;
+          intent.__schema = action.__schema;
+          intent.__domain = action.__domain;
+          return intent;
         });
       }
 
@@ -1098,6 +1167,9 @@
       intents = namedActions ? (intentList !== null && intentList !== void 0 ? intentList : []).reduce((acc, intent) => Object.assign(acc, {
         [intent.__actionName]: intent
       }), {}) : intentList;
+      if (namedActions) {
+        Object.assign(registeredIntents, intents);
+      }
 
       // Add component's acceptors,  reactors, naps and safety condition to SAM instance
       if (component.acceptors && !Array.isArray(component.acceptors) && typeof component.acceptors === 'object') {
@@ -1224,6 +1296,8 @@
         setState,
         lastStep,
         manifest,
+        validate,
+        namedIntents: () => Object.assign({}, registeredIntents),
         dispose: () => synchronize && queue.clear()
       };
     };
@@ -1421,6 +1495,27 @@
       } while (k < kmax);
     });
   };
+
+  // v2 (#24): derives the checker's intent list from the instance's named
+  // intents and their declared input domains — no harness-side configuration.
+  // Domain entries: an array spreads as intent arguments, anything else is the
+  // single argument; a function domain is a generator evaluated here.
+  const intentsFromDomains = instance => {
+    const control = instance({});
+    if (typeof control.namedIntents !== 'function') {
+      return [];
+    }
+    const named = control.namedIntents();
+    return Object.keys(named).map(name => {
+      const intent = named[name];
+      const domain = typeof intent.__domain === 'function' ? intent.__domain() : intent.__domain;
+      return {
+        name,
+        intent,
+        values: (domain !== null && domain !== void 0 ? domain : []).map(entry => Array.isArray(entry) ? entry : [entry])
+      };
+    }).filter(i => i.values.length > 0);
+  };
   const checker = ({
     instance,
     initialState = {},
@@ -1440,6 +1535,9 @@
       doNotStartWith = [],
       format
     } = options;
+    if (intents.length === 0) {
+      intents = intentsFromDomains(instance);
+    }
     const [behaviorIntent, formatIntent] = instance({
       component: {
         actions: [__behavior => ({
@@ -1544,6 +1642,7 @@
     // v2 strict profile
     SamSchemaError,
     SamShapeError,
+    SamValidationError,
     validateProposal,
     checkShapeWrite
   };
