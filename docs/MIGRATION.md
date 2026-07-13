@@ -79,6 +79,8 @@ acceptors: {
 
 `instance({}).lastStep()` returns `{ intent, mutations, writes, rejections, classification }` where classification is `mutated | rejected | identity-by-mutation | unhandled` — every no-op step is mechanically explainable. Strict mode warns on `unhandled` (intent fired, nothing mutated, nothing rejected). Subscribe a harness with `instance({ stepListener: step => ... })`.
 
+The v1 rejection idiom is unified into the same vocabulary (since 2.0.0-alpha.3): an acceptor that records `model.__error` during a non-mutating step classifies as `rejected` with the error text as `rejections[0].reason` — consumers of `lastStep()` need no version-specific branching. A step that writes `__error` *and* mutates classifies `mutated` (the error stays readable in the slot); `unhandled` means exactly one thing: the intent fired and the machine neither mutated, nor rejected, nor recorded an error.
+
 ## Step 4 — key acceptors by action (#23)
 
 v1 broadcast acceptors (every acceptor sees every proposal) still work, but the keyed form makes the framework do the binding — acceptor bodies contain only guards and mutations, and the switch-over-action-types monolith is inexpressible:
