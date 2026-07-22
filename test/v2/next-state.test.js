@@ -56,6 +56,18 @@ const strictNextStateInstance = (name, acceptors) => {
 }
 
 describe('v2 — explicit next-state (prime) semantics (#25)', () => {
+  describe('package exports', () => {
+    it('should export SamFrameError from the package root (2.1.1 regression)', () => {
+      // 2.1.0 shipped without this export — users could catch by err.name but
+      // not instanceof; pin the root surface alongside the other strict errors
+      const root = require('../../index').default
+      expect(root.SamFrameError).to.be.a('function')
+      expect(root.SamShapeError).to.be.a('function')
+      expect(root.SamSchemaError).to.be.a('function')
+      expect(root.SamValidationError).to.be.a('function')
+    })
+  })
+
   describe('prime separation', () => {
     it('should read the pre-state value even after the same variable is primed (read-your-writes)', async () => {
       // next.votedFor derives from model.term AFTER next.term was assigned;
