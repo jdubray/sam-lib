@@ -49,34 +49,41 @@ const leaderElection = (name, overrides = {}) => {
         ...(overrides.actions ?? {})
       },
       acceptors: {
-        ElectionTimeout: model => (proposal, { reject }) => {
+        ElectionTimeout: model => (proposal, { reject, next }) => {
           if (model.role === 'leader') {
             return reject('leaders do not time out')
           }
-          model.role = 'candidate'
-          model.term += 1
-          model.votedFor = 'n1'
-          model.votesGranted = 1
+          // committing path assigns every declared variable — no framing needed
+          next.role = 'candidate'
+          next.term = model.term + 1 // #25: increment reads the pre-state term
+          next.votedFor = 'n1'
+          next.votesGranted = 1
           return undefined
         },
-        VoteGranted: model => (proposal, { reject }) => {
+        VoteGranted: model => (proposal, { reject, next, unchanged }) => {
           if (model.role !== 'candidate') {
             return reject('votes only count while campaigning')
           }
-          model.votesGranted += 1
-          if (model.votesGranted >= 2) {
-            model.role = 'leader'
+          // read-your-writes: threshold tests the newly tallied count, not pre-state
+          const votesGranted = model.votesGranted + 1
+          next.votesGranted = votesGranted
+          unchanged('term', 'votedFor')
+          if (votesGranted >= 2) {
+            next.role = 'leader'
+          } else {
+            unchanged('role')
           }
           return undefined
         },
-        Heartbeat: model => (proposal, { reject }) => {
+        Heartbeat: model => (proposal, { reject, next }) => {
           if (proposal.term < model.term) {
             return reject('stale term')
           }
-          model.role = 'follower'
-          model.term = proposal.term
-          model.votedFor = null
-          model.votesGranted = 0
+          // stepping down assigns every declared variable — no framing needed
+          next.role = 'follower'
+          next.term = proposal.term
+          next.votedFor = null
+          next.votesGranted = 0
           return undefined
         },
         ...(overrides.acceptors ?? {})
@@ -119,8 +126,8 @@ describe('v2 — Raft leader election acceptance (strict profile end-to-end)', (
     // the Sonnet defect: private vote tallies outside the declared shape
     const { intents } = leaderElection('raftHiddenState', {
       acceptors: {
-        VoteGranted: model => ({ from }) => {
-          model._votes = { [from]: true }
+        VoteGranted: model => ({ from }, { next }) => {
+          next._votes = { [from]: true }
         }
       }
     })

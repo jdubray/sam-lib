@@ -34,15 +34,16 @@ const turnstile = (name, options = {}) => {
         Push: () => ({ push: true })
       },
       acceptors: {
-        Coin: model => (p, { reject }) => {
+        Coin: model => (p, { reject, next }) => {
           if (model.state === 'UNLOCKED') return reject('already unlocked')
-          model.state = 'UNLOCKED'
-          model.coins += 1
+          next.state = 'UNLOCKED'
+          next.coins = model.coins + 1
           return undefined
         },
-        Push: model => (p, { reject }) => {
+        Push: model => (p, { reject, next, unchanged }) => {
           if (model.state === 'LOCKED') return reject('locked')
-          model.state = 'LOCKED'
+          next.state = 'LOCKED'
+          unchanged('*')
           return undefined
         }
       }
@@ -78,9 +79,9 @@ describe('v2 — model data keys must not shadow Model methods (#29)', () => {
         modelShape: { state: { type: 'string' }, coins: { type: 'number' } },
         actions: { Coin: () => ({ coin: true }) },
         acceptors: {
-          Coin: model => () => {
-            model.state = 'UNLOCKED'
-            model.coins += 1
+          Coin: model => (p, { next }) => {
+            next.state = 'UNLOCKED'
+            next.coins = model.coins + 1
           }
         }
       },
@@ -108,7 +109,7 @@ describe('v2 — model data keys must not shadow Model methods (#29)', () => {
           continue: { type: 'string' }
         },
         actions: { Coin: () => ({ coin: true }) },
-        acceptors: { Coin: model => () => { model.state = 'UNLOCKED' } }
+        acceptors: { Coin: model => (p, { next, unchanged }) => { next.state = 'UNLOCKED'; unchanged('*') } }
       },
       render: s => { rendered = s.state }
     })

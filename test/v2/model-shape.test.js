@@ -34,20 +34,21 @@ const strictRaftInstance = (name) => {
       acceptors: [
         model => ({
           node, term, hide, badTerm
-        }) => {
+        }, { next, unchanged }) => {
           if (node != null) {
-            model.votedFor = node
+            next.votedFor = node
           }
           if (term != null) {
-            model.term = term
+            next.term = term
           }
           if (hide) {
             // The Sonnet failure class: hidden bookkeeping state
-            model._votes = { n1: true }
+            next._votes = { n1: true }
           }
           if (badTerm != null) {
-            model.term = badTerm
+            next.term = badTerm
           }
+          unchanged('*') // #25: frame every variable this monolithic body leaves alone
         }
       ]
     }
@@ -110,10 +111,11 @@ describe('v2 — declared, sealed model shape (#21)', () => {
           },
           actions: { Increment: () => ({ increment: 1 }) },
           acceptors: [
-            model => ({ increment }) => {
+            model => ({ increment }, { next, unchanged }) => {
               if (increment != null) {
-                model.count += increment
+                next.count = model.count + increment
               }
+              unchanged('*')
             }
           ],
           reactors: [

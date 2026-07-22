@@ -34,23 +34,25 @@ const keyedInstance = (name) => {
         }
       },
       acceptors: {
-        ElectionTimeout: model => (proposal, { reject }) => {
+        ElectionTimeout: model => (proposal, { reject, next, unchanged }) => {
           calls.ElectionTimeout += 1
           if (model.role === 'leader') {
             return reject('leaders do not time out')
           }
-          model.role = 'candidate'
-          model.lastAction = `timeout:${proposal.node}`
+          next.role = 'candidate'
+          next.lastAction = `timeout:${proposal.node}`
+          unchanged('*')
           return undefined
         },
-        AppendEntries: model => (proposal) => {
+        AppendEntries: model => (proposal, { next, unchanged }) => {
           calls.AppendEntries += 1
-          model.term = proposal.term
-          model.lastAction = 'append'
+          next.term = proposal.term
+          next.lastAction = 'append'
+          unchanged('*')
         },
-        '*': model => () => {
+        '*': model => (proposal, { next }) => {
           calls.broadcast += 1
-          model.steps += 1
+          next.steps = model.steps + 1
         }
       }
     }

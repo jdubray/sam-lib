@@ -35,17 +35,18 @@ const guardedInstance = (name) => {
         Unhandled: () => ({ unhandled: true })
       },
       acceptors: [
-        (model) => ({ timeout, term }, { reject }) => {
+        (model) => ({ timeout, term }, { reject, next, unchanged }) => {
           if (timeout) {
             if (model.role === 'leader') {
               return reject('leaders do not time out')
             }
-            model.role = 'candidate'
-            model.term += 1
+            next.role = 'candidate'
+            next.term = model.term + 1
           }
           if (term != null) {
-            model.term = term
+            next.term = term
           }
+          unchanged('*')
           return undefined
         }
         // note: no acceptor handles the Unhandled intent
@@ -128,13 +129,15 @@ describe('v2 — first-class reject(reason): observable enabledness (#22)', () =
             Guarded: () => ({ guarded: true })
           },
           acceptors: [
-            model => ({ increment, guarded }, { reject }) => {
+            model => ({ increment, guarded }, { reject, next, unchanged }) => {
               if (increment != null) {
-                model.count += increment
+                next.count = model.count + increment
               }
               if (guarded) {
-                reject('always off')
+                return reject('always off')
               }
+              unchanged('*')
+              return undefined
             }
           ]
         }
@@ -184,8 +187,9 @@ describe('v2 — first-class reject(reason): observable enabledness (#22)', () =
             }
           },
           acceptors: {
-            BumpTerm: model => ({ node }) => {
+            BumpTerm: model => ({ node }, { unchanged }) => {
               model.nodes[node].term += 1 // in-place: no top-level write
+              unchanged('*') // #25: frame the shape; the deep write stays in place
             }
           }
         }
@@ -212,7 +216,7 @@ describe('v2 — first-class reject(reason): observable enabledness (#22)', () =
         component: {
           modelShape: { nodes: { type: 'object' } },
           actions: { Noop: () => ({ noop: true }) },
-          acceptors: { Noop: () => () => null }
+          acceptors: { Noop: () => (proposal, { unchanged }) => { unchanged('*'); return null } }
         }
       })
       const warn = stubWarn()

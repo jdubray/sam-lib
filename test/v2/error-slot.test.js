@@ -31,20 +31,23 @@ const v1StyleClock = (name) => {
         TOCK: () => ({ tock: true })
       },
       acceptors: [
-        model => ({ tick, tock }) => {
+        model => ({ tick, tock }, { next, unchanged }) => {
+          // frame every variable up front so the __error early-return paths
+          // (which still run the commit/frame check under #25) stay complete
+          unchanged('*')
           if (tick) {
             if (model.pc === 'TICKED') {
               model.__error = 'unexpected action TICK for state: TICKED'
               return
             }
-            model.pc = 'TICKED'
+            next.pc = 'TICKED'
           }
           if (tock) {
             if (model.pc === 'TOCKED') {
               model.__error = 'unexpected action TOCK for state: TOCKED'
               return
             }
-            model.pc = 'TOCKED'
+            next.pc = 'TOCKED'
           }
         }
       ]
@@ -79,11 +82,12 @@ describe('v2 — error-slot writes classify as rejected (#31)', () => {
         modelShape: { count: { type: 'number' } },
         actions: { Increment: () => ({ increment: 1 }) },
         acceptors: [
-          model => ({ increment }) => {
+          model => ({ increment }, { next, unchanged }) => {
             if (increment != null) {
-              model.count += increment
+              next.count = model.count + increment
               model.__error = 'partial acceptance note'
             }
+            unchanged('*')
           }
         ]
       }
@@ -104,10 +108,11 @@ describe('v2 — error-slot writes classify as rejected (#31)', () => {
         modelShape: { pc: { type: 'string' } },
         actions: { TICK: () => ({ tick: true }) },
         acceptors: [
-          model => ({ tick }) => {
+          model => ({ tick }, { unchanged }) => {
             if (tick) {
               model.__error = new Error('guard refused the proposal')
             }
+            unchanged('*')
           }
         ]
       }
@@ -125,7 +130,9 @@ describe('v2 — error-slot writes classify as rejected (#31)', () => {
       component: {
         modelShape: { count: { type: 'number' } },
         actions: { Noop: () => ({ noop: true }) },
-        acceptors: [() => () => null]
+        // frames the declared shape without writing next: a true no-op that
+        // still satisfies the #25 commit frame yet classifies as unhandled
+        acceptors: [() => (proposal, { unchanged }) => { unchanged('*') }]
       }
     })
     const warn = stubWarn()

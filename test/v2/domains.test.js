@@ -31,11 +31,13 @@ const fullyDeclaredCounter = (name) => {
         }
       },
       acceptors: {
-        Increment: model => ({ by }) => {
-          model.count += by
+        Increment: model => ({ by }, { next, unchanged }) => {
+          next.count = model.count + by
+          unchanged('*')
         },
-        Reset: model => () => {
-          model.count = 0
+        Reset: model => (proposal, { next, unchanged }) => {
+          next.count = 0
+          unchanged('*')
         }
       }
     }
@@ -58,8 +60,9 @@ describe('v2 — per-intent input-domain manifest (#24)', () => {
           modelShape: { count: { type: 'number' } },
           actions: { Increment: () => ({ increment: 1 }) }, // no schema, no domain
           acceptors: {
-            Increment: model => ({ increment }) => {
-              model.count += increment
+            Increment: model => ({ increment }, { next, unchanged }) => {
+              next.count = model.count + increment
+              unchanged('*')
             }
           }
         }
@@ -110,7 +113,7 @@ describe('v2 — per-intent input-domain manifest (#24)', () => {
               domain: [{ node: 42 }] // type violation, caught at declaration
             }
           },
-          acceptors: [model => ({ node }) => { if (node != null) { model.node = node } }]
+          acceptors: [model => ({ node }, { next, unchanged }) => { if (node != null) { next.node = node } unchanged('*') }]
         }
       })).to.throw(SamSchemaError, /node/)
     })
@@ -161,8 +164,9 @@ describe('v2 — per-intent input-domain manifest (#24)', () => {
             }
           },
           acceptors: {
-            Increment: model => ({ by }) => {
-              model.count += by
+            Increment: model => ({ by }, { next, unchanged }) => {
+              next.count = model.count + by
+              unchanged('*')
             }
           }
         }
