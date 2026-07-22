@@ -359,6 +359,43 @@ describe('v2 — explicit next-state (prime) semantics (#25)', () => {
     })
   })
 
+  describe('async acceptors on non-synchronized instances (2.1.2 regression)', () => {
+    it('should throw SamFrameError instead of silently discarding post-await writes', async () => {
+      // without the guard, next.term written after the await lands in a draft
+      // the next step discards — the silent-loss class #25 exists to kill
+      const { intents } = strictNextStateInstance('v2ns-async-nosync', {
+        Bump: model => async (proposal, { next, unchanged }) => {
+          await new Promise(resolve => setTimeout(resolve, 5))
+          next.term = model.term + 1
+          unchanged('*')
+        }
+      })
+      try {
+        await intents.Bump('n1')
+        expect.fail('expected SamFrameError for async acceptor on non-synchronized instance')
+      } catch (err) {
+        expect(err.name).to.equal('SamFrameError')
+        expect(err.asyncAcceptor).to.equal(true)
+        expect(err.message).to.include('synchronize')
+      }
+    })
+
+    it('should not throw in default mode (v1 behavior preserved, warn-only)', async () => {
+      const instance = createInstance({ instanceName: 'v2ns-async-default' })
+      const { intents } = instance({
+        initialState: { count: 0 },
+        component: {
+          actions: [() => ({ tick: true })],
+          acceptors: [
+            model => async () => { model.count += 1 } // completes before returning
+          ]
+        }
+      })
+      await intents[0]() // must not throw
+      expect(instance({}).state('count')).to.equal(1)
+    })
+  })
+
   describe('strict-mode only', () => {
     it('should NOT provide next/unchanged and should NOT freeze the model in default mode', async () => {
       const seen = {}

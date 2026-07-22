@@ -40,8 +40,24 @@ Version 2.0 introduces an opt-in **strict profile** (`createInstance({ strict: t
 - **First-class `reject(reason)`** — every no-op step is classifiable as `rejected | unhandled | identity-by-mutation` via `lastStep()` ([#22](https://github.com/jdubray/sam-lib/issues/22))
 - **Per-action acceptor registration** — the framework binds acceptors to actions; the switch-dispatch monolith is inexpressible ([#23](https://github.com/jdubray/sam-lib/issues/23))
 - **Per-intent input domains** (SAM's `CONSTANTS`) — the model checker explores a declared spec with zero harness-side configuration; `validate()` reports undeclared obligations ([#24](https://github.com/jdubray/sam-lib/issues/24))
+- **Explicit next-state (prime) semantics** *(2.1)* — acceptors are TLA+-style next-state relations: `model` is the frozen pre-state (unprimed `x`), writes go to the `next` draft (primed `x'`), and every declared variable must be assigned or named `unchanged(...)` each step — else `SamFrameError` ([docs/ISSUE-25-next-state.md](docs/ISSUE-25-next-state.md))
 
-All v1 APIs work unchanged. See [docs/MIGRATION.md](docs/MIGRATION.md) for the step-by-step guide and [docs/V2-PLAN.md](docs/V2-PLAN.md) for the design rationale (distilled from a three-study comparison of SAM and TLA+).
+The strict acceptor form (2.1, active under `strict: true` + a declared `modelShape`):
+
+```javascript
+acceptors: {
+  ElectionTimeout: model => (proposal, { reject, next, unchanged }) => {
+    if (model.role === 'leader') return reject('leaders do not time out')
+    next.role = 'candidate'
+    next.term = model.term + 1            // the right-hand side reads the PRE-state
+    unchanged('votedFor', 'log')          // explicit frame — SAM's UNCHANGED
+  }
+}
+```
+
+Writing `model.x` in a strict acceptor throws (`SamShapeError`): reads are always pre-state, so statement order cannot change a transition's meaning. Two acceptors assigning the same variable in one step throw (double-prime), and acceptors must be synchronous unless the instance is created with `synchronize: true`. `lastStep()` exposes the step's `primed`/`unchanged` sets, and `manifest().acceptors.frames` reports each acceptor's prime/frame sets for external tools (e.g. `UNCHANGED <<...>>` recovery in a SAM→TLA+ transpiler).
+
+All v1 (default-mode) APIs work unchanged — the code samples below use default mode. **Strict specs written for 2.0 must migrate their acceptors to the `next`/`unchanged` form** — see [docs/MIGRATION.md](docs/MIGRATION.md) (v2.1 section) for the mechanical steps, and [docs/V2-PLAN.md](docs/V2-PLAN.md) for the design rationale (distilled from a three-study comparison of SAM and TLA+).
 
 ## Code Samples
 

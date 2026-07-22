@@ -6,7 +6,7 @@
 
 Three studies comparing SAM and TLA+ (most recently *"Load-Bearing for Verification, Not for Robustness"*, `sysmobench`) validated SAM's core design — the acceptor/mutation guard–effect separation and the single synchronized step are exactly what make specs explorable, transpilable to TLA+, determinism-checkable, and locally repairable. But the studies also priced four places where the pattern relies on **convention** where it should rely on **construction**, and every observed failure class maps to one of them. v2 moves those obligations from documentation into the library, as an **opt-in strict profile** so existing v1 applications run untouched.
 
-The requirements are filed as issues [#20](https://github.com/jdubray/sam-lib/issues/20)–[#25](https://github.com/jdubray/sam-lib/issues/25). The study's failure table is the acceptance suite:
+The requirements are filed as issues [#20](https://github.com/jdubray/sam-lib/issues/20)–[#24](https://github.com/jdubray/sam-lib/issues/24) and [#34](https://github.com/jdubray/sam-lib/issues/34) (next-state semantics — referred to as "#25" throughout these docs, a working name that predates the GitHub issue; the number 25 itself is the merged V2 PR). The study's failure table is the acceptance suite:
 
 | Observed failure | Root cause in v1 | v2 fix | Issue |
 |---|---|---|---|

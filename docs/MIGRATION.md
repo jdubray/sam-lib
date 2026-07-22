@@ -191,5 +191,6 @@ The rules:
 3. **One writer per variable per step.** Two acceptors assigning the same variable throws `SamFrameError` (double-prime).
 4. **Reactors are unchanged** — they still write `model.<derived>` directly, after commit.
 5. An intent no acceptor constrains throws `SamFrameError` (`unhandledIntent` set) instead of only warning.
+6. **Acceptors must be synchronous unless the instance uses `synchronize: true`** *(2.1.2)*. On a non-synchronized instance the step commits when the acceptors return, so an `async` acceptor's writes after an `await` would land in a draft the next step discards — a silent loss. Next-state mode therefore throws `SamFrameError` (`asyncAcceptor: true`) when an acceptor returns a promise; default mode warns (dev mode). Move the async work into the action (where it belongs), or create the instance with `synchronize: true`.
 
 New observability: `lastStep()` adds `primed` (`{ var: { from, to } }`) and `unchanged`; `manifest().acceptors.frames` reports each acceptor's accumulated prime/frame sets for transpilers (UNCHANGED-clause recovery).

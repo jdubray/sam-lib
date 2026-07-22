@@ -1,6 +1,6 @@
 # #25 — Explicit next-state (prime) semantics for acceptors
 
-**Milestone:** v2 strict profile · **Depends on:** #21 (declared model shape), #23 (keyed acceptors) · **Status:** implemented (Phase 5.5)
+**Milestone:** v2 strict profile · **Depends on:** #21 (declared model shape), #23 (keyed acceptors) · **Status:** implemented (Phase 5.5) · **GitHub issue:** [#34](https://github.com/jdubray/sam-lib/issues/34) ("#25" is this design's working name; that number on GitHub is the merged V2 PR)
 
 > **Implemented in** `lib/sam-strict.js` (`SamFrameError`) and `lib/sam-instance.js` (frozen pre-state, `next` draft, `unchanged`, per-step union frame check, double-prime, atomic commit, `lastStep().primed`/`.unchanged`, and `manifest().acceptors.frames` per-acceptor prime/frame reporting). Covered by `test/v2/next-state.test.js` (15 tests); the #20–#24 strict suites were migrated to the `next`-draft contract. Full suite green (237).
 
