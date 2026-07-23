@@ -69,10 +69,11 @@ Acceptors receive a second argument `{ reject }`:
 
 ```js
 acceptors: {
-  ElectionTimeout: model => (proposal, { reject }) => {
+  ElectionTimeout: model => (proposal, { reject, next, unchanged }) => {
     if (model.role === 'leader') return reject('leaders do not time out')
-    model.role = 'candidate'
-    model.term += 1
+    next.role = 'candidate'            // 2.1+: writes go to the next draft (see v2.1 below)
+    next.term = model.term + 1
+    unchanged('votedFor', 'double', 'tally')
   }
 }
 ```
@@ -194,3 +195,10 @@ The rules:
 6. **Acceptors must be synchronous unless the instance uses `synchronize: true`** *(2.1.2)*. On a non-synchronized instance the step commits when the acceptors return, so an `async` acceptor's writes after an `await` would land in a draft the next step discards — a silent loss. Next-state mode therefore throws `SamFrameError` (`asyncAcceptor: true`) when an acceptor returns a promise; default mode warns (dev mode). Move the async work into the action (where it belongs), or create the instance with `synchronize: true`.
 
 New observability: `lastStep()` adds `primed` (`{ var: { from, to } }`) and `unchanged`; `manifest().acceptors.frames` reports each acceptor's accumulated prime/frame sets for transpilers (UNCHANGED-clause recovery).
+
+## v2.2 — field fixes from the polygraph studies
+
+Two rules distilled from real-world generated-spec failures (issues [#35](https://github.com/jdubray/sam-lib/issues/35), [#36](https://github.com/jdubray/sam-lib/issues/36)):
+
+1. **Union types.** `type` in `modelShape` and payload schemas may be an array: `{ type: ['string', 'object'] }` accepts a write whose runtime type is in the list (e.g. xstate-style state values — `string` for atomic states, object for nested ones). A single string keeps its exact-match meaning; omitting `type` entirely (`{}`) is the documented explicit "any".
+2. **reject() after next-state writes throws.** An acceptor that assigns `next.*` and then calls `reject(reason)` in the same step throws `SamFrameError` (`rejectAfterWrite: [keys]`) instead of silently discarding the writes — field data showed generated specs borrowing `reject()` to annotate a *successful* transition with its reason, no-opping every mutating step without an error. A declined branch must reject **before** writing; there is no accept-with-reason primitive. A *different* acceptor rejecting after another wrote remains legal — that is a deliberate cross-cutting veto, and the step's draft is discarded as intended.

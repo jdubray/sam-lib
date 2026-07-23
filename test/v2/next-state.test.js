@@ -359,6 +359,94 @@ describe('v2 — explicit next-state (prime) semantics (#25)', () => {
     })
   })
 
+  describe('2.2 field fixes — union types (#35) and reject-after-write (#36)', () => {
+    it('should accept both arms of a union-typed modelShape key and refuse others (#35)', async () => {
+      const instance = createInstance({ strict: true, instanceName: 'v22-union' })
+      const { intents } = instance({
+        initialState: { value: 'green' },
+        component: {
+          modelShape: {
+            // xstate-style state value: atomic string or {parent: child}
+            value: { type: ['string', 'object'] }
+          },
+          actions: {
+            Set: {
+              action: v => ({ v }),
+              schema: { v: { type: ['string', 'object', 'number'], required: true } },
+              domain: [['red'], [{ red: 'walk' }]]
+            }
+          },
+          acceptors: {
+            Set: model => ({ v }, { next, reject }) => {
+              if (typeof v === 'number') return reject('numbers are not states')
+              next.value = v
+            }
+          }
+        }
+      })
+      await intents.Set({ red: 'walk' })                       // object arm
+      expect(instance({}).getState().value).to.deep.equal({ red: 'walk' })
+      await intents.Set('green')                               // string arm
+      expect(instance({}).getState().value).to.equal('green')
+      // an arm outside the union still throws SamShapeError
+      const bad = createInstance({ strict: true, instanceName: 'v22-unionBad' })
+      const ctl = bad({
+        initialState: { value: 'a' },
+        component: {
+          modelShape: { value: { type: ['string', 'object'] } },
+          actions: { Set: { action: v => ({ v }), schema: {}, domain: [[1]] } },
+          acceptors: { Set: model => ({ v }, { next }) => { next.value = v } }
+        }
+      })
+      try {
+        await ctl.intents.Set(1)
+        expect.fail('expected SamShapeError for arm outside the union')
+      } catch (err) {
+        expect(err.name).to.equal('SamShapeError')
+        expect(err.message).to.include('string|object')
+      }
+    })
+
+    it('should throw when an acceptor rejects after writing next.* (#36 — the success-annotation misuse)', async () => {
+      const { instance, intents } = strictNextStateInstance('v22-rejafter', {
+        Bump: model => (proposal, { reject, next, unchanged }) => {
+          next.role = 'candidate'
+          next.term = model.term + 1
+          unchanged('votedFor', 'audit')
+          return reject('transitioned on timeout') // "annotating success" — the field misuse
+        }
+      })
+      try {
+        await intents.Bump('n1')
+        expect.fail('expected SamFrameError for reject after next writes')
+      } catch (err) {
+        expect(err.name).to.equal('SamFrameError')
+        expect(err.rejectAfterWrite).to.have.members(['role', 'term'])
+        expect(err.message).to.include('discard')
+      }
+      // nothing committed
+      expect(instance({}).state('role')).to.equal('follower')
+    })
+
+    it('should keep the cross-acceptor veto legal: another acceptor may reject after one wrote (#36)', async () => {
+      const { instance, intents } = strictNextStateInstance('v22-veto', {
+        Bump: model => (proposal, { next, unchanged }) => {
+          next.term = model.term + 1
+          unchanged('role', 'votedFor', 'audit')
+        },
+        '*': model => (proposal, { reject }) => {
+          // cross-cutting guard that wrote nothing itself: a deliberate veto
+          if (model.role === 'follower') return reject('followers are read-only today')
+          return undefined
+        }
+      })
+      await intents.Bump('n1') // must NOT throw
+      const step = instance({}).lastStep()
+      expect(step.classification).to.equal('rejected')
+      expect(instance({}).state('term')).to.equal(5) // draft discarded, deliberately
+    })
+  })
+
   describe('async acceptors on non-synchronized instances (2.1.2 regression)', () => {
     it('should throw SamFrameError instead of silently discarding post-await writes', async () => {
       // without the guard, next.term written after the await lands in a draft
